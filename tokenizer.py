@@ -22,6 +22,9 @@ class Tokenizer:
         return self
     
     def __next__(self):
+        return self.next()
+    
+    def next(self):
         self.last_token += 1
 
         if self.last_token < len(self.tokens):
@@ -29,7 +32,7 @@ class Tokenizer:
         
         else:
             raise StopIteration
-    
+
     def _tokenize(self, operand):
 
         tokens = []
