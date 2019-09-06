@@ -1,10 +1,11 @@
 
 import re
 
-WHITESPACE = re.compile("\\s")
-IDENT_START = re.compile("[a-zA-Z_]")
-IDENT_BODY = re.compile("\w")
-DIGIT = re.compile("\d")
+WHITESPACE = re.compile(r"\s")
+IDENT_START = re.compile(r"[a-zA-Z_]")
+IDENT_BODY = re.compile(r"\w")
+DIGIT = re.compile(r"\d")
+CHARCONST = re.compile(r"'.'")
 
 class Tokenizer:
 
@@ -53,7 +54,7 @@ class Tokenizer:
 
 
             if operand[tokend-1:tokend+1] == "(*":
-                while operand[tokend-1:tokend+1] != "*)":
+                while tokend < len(operand) and operand[tokend-1:tokend+1] != "*)":
                     tokend += 1
                 
                 tokstart = tokend + 1
@@ -68,10 +69,17 @@ class Tokenizer:
                     tokend += 1
 
             elif operand[tokstart] == "\'":
-                tokend += 1
-                while tokend < len(operand) and operand[tokend] != "\'":
-                    tokend += 1
-                tokend += 1
+
+                tokend = tokstart + 3
+
+                if not (tokend < len(operand) and re.match(CHARCONST, operand[tokstart:tokend])):
+
+                    if operand[tokend-2] == "\'":
+                        tokend = tokstart + 2
+                    else:
+                        tokend = tokstart + 1
+
+                
             
             elif operand[tokstart] == ".":
                 if operand[tokend] == ".":
