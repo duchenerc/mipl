@@ -18,7 +18,7 @@ green=`tput setaf 2`
 red=`tput setaf 1`
 reset=`tput sgr0`
 
-inputs=`find $INPUT -type f -iname "$1*"`
+inputs=`find $INPUT -type f -iname "$1*.txt"`
 fails=0
 passes=0
 
