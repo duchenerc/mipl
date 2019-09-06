@@ -1,0 +1,4 @@
+expected/*.txt.out
+input/*.txt
+reports/*.txt
+output/*.txt.out
