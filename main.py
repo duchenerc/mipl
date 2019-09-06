@@ -6,6 +6,8 @@ import sys
 from pprint import pprint
 import string
 
+from tokenizer import Tokenizer
+
 tokens = [
     "\\w+",
     "\\'.*\\'"
@@ -94,84 +96,26 @@ LITERALS = {
 def print_token(tok, lexeme):
     print(f"TOKEN: {tok} LEXEME: {lexeme}")
 
-with open(filename) as f:
-    filestr = f.read()
+tokenizer = Tokenizer(filename)
     
-    tokstart = 0
-    tokend = 0
+for lexeme in tokenizer:
+    if lexeme in LITERALS.keys():
+        print_token(LITERALS[lexeme], lexeme)
 
-    while tokstart < len(filestr):
-        while re.match(WHITESPACE, filestr[tokstart]):
-            tokstart += 1
-            if tokstart >= len(filestr):
-                break
-            
-        if tokstart >= len(filestr):
-                break
-
-        tokend = tokstart + 1
-
-
-        if filestr[tokend-1:tokend+1] == "(*":
-            while filestr[tokend-1:tokend+1] != "*)":
-                tokend += 1
-            
-            tokstart = tokend + 1
-            continue
-
-        elif re.match(IDENT_START, filestr[tokstart]):
-            while re.match(IDENT_BODY, filestr[tokend]):
-                tokend += 1
-            
-        elif re.match(DIGIT, filestr[tokstart]):
-            while re.match(DIGIT, filestr[tokend]):
-                tokend += 1
-
-        elif filestr[tokstart] == "\'":
-            tokend += 1
-            while tokend < len(filestr) and filestr[tokend] != "\'":
-                tokend += 1
-            tokend += 1
-        
-        elif filestr[tokstart] == ".":
-            if filestr[tokend] == ".":
-                tokend += 1
-        
-        elif filestr[tokstart] == ":":
-            if filestr[tokend] == "=":
-                tokend += 1
-        
-        elif filestr[tokstart] == "<":
-            if filestr[tokend] in "=>":
-                tokend += 1
-        
-        elif filestr[tokstart] == ">":
-            if filestr[tokend] == "=":
-                tokend += 1
-        
-        # print(filestr[tokstart:tokend])
-
-        tokenstream.append(filestr[tokstart:tokend])
-        tokstart = tokend
+    elif re.match(IDENT, lexeme):
+        print_token("T_IDENT", lexeme)
     
-    for lexeme in tokenstream:
-        if lexeme in LITERALS.keys():
-            print_token(LITERALS[lexeme], lexeme)
-
-        elif re.match(IDENT, lexeme):
-            print_token("T_IDENT", lexeme)
-        
-        elif re.match(INTCONST, lexeme):
-            if not (int(lexeme, 10) >> 31):
-                print_token("T_INTCONST", lexeme)
-            else:
-                print(f"**** invalid integer constant: {lexeme}")
-        
-        elif re.match(CHARCONST, lexeme):
-            print_token("T_CHARCONST", lexeme)
-        
-        elif re.match(CHARCONST_INVALID, lexeme):
-            print(f"**** invalid character constant: {lexeme}")
-        
+    elif re.match(INTCONST, lexeme):
+        if not (int(lexeme, 10) >> 31):
+            print_token("T_INTCONST", lexeme)
         else:
-            print_token("UNKNOWN", lexeme)
+            print(f"**** invalid integer constant: {lexeme}")
+    
+    elif re.match(CHARCONST, lexeme):
+        print_token("T_CHARCONST", lexeme)
+    
+    elif re.match(CHARCONST_INVALID, lexeme):
+        print(f"**** invalid character constant: {lexeme}")
+    
+    else:
+        print_token("UNKNOWN", lexeme)
