@@ -1,0 +1,3 @@
+
+class MiplSyntaxError(Exception):
+    pass

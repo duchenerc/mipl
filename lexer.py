@@ -99,12 +99,15 @@ LITERALS = {
     "..": Token.DOTDOT
 }
 
+def print_token(token):
+    print(f"TOKEN: {token.kind.value} LEXEME: {token.literal}")
+
 class Lexeme:
 
-    def __init__(self, literal, token):
+    def __init__(self, literal, kind):
 
         self.literal = literal
-        self.token = token
+        self.kind = kind
     
     def __str__(self):
         return f"TOKEN: {self.token.value} LEXEME: {self.literal}"
@@ -120,7 +123,13 @@ class Lexer:
         return self
     
     def __next__(self):
-        return self.process_literal(self.tokenizer.next())
+        return self.next()
+
+    def next(self):
+        tok = self.process_literal(self.tokenizer.next())
+        print_token(tok)
+        return tok
+
     
     def process_literal(self, literal):
         if literal in LITERALS.keys():
