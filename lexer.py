@@ -1,4 +1,5 @@
 from enum import Enum
+from errors import MiplInvalidConst
 import re
 
 IDENT = re.compile("[a-zA-Z_]\w*")
@@ -144,13 +145,13 @@ class Lexer:
             if not (abs(int(literal, 10)) >> 31):
                 return Lexeme(literal, Token.INTCONST, line_number)
             else:
-                print(f"**** invalid integer constant: {literal}")
+                raise MiplInvalidConst(f"**** invalid integer constant: {literal}")
         
         elif re.match(CHARCONST, literal):
             return Lexeme(literal, Token.CHARCONST, line_number)
         
         elif re.match(CHARCONST_INVALID, literal):
-            print(f"**** invalid character constant: {literal}")
+            raise MiplInvalidConst(f"**** invalid character constant: {literal}")
         
         else:
             return Lexeme(literal, Token.UNKNOWN, line_number)
