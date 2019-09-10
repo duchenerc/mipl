@@ -104,10 +104,11 @@ def print_token(token):
 
 class Lexeme:
 
-    def __init__(self, literal, kind):
+    def __init__(self, literal, kind, line_number):
 
         self.literal = literal
         self.kind = kind
+        self.line_number = line_number
     
     def __str__(self):
         return f"TOKEN: {self.token.value} LEXEME: {self.literal}"
@@ -131,24 +132,25 @@ class Lexer:
         return tok
 
     
-    def process_literal(self, literal):
+    def process_literal(self, token):
+        literal, line_number = token
         if literal in LITERALS.keys():
-            return Lexeme(literal, LITERALS[literal])
+            return Lexeme(literal, LITERALS[literal], line_number)
 
         elif re.match(IDENT, literal):
-            return Lexeme(literal, Token.IDENT)
+            return Lexeme(literal, Token.IDENT, line_number)
         
         elif re.match(INTCONST, literal):
             if not (int(literal, 10) >> 31):
-                return Lexeme(literal, Token.INTCONST)
+                return Lexeme(literal, Token.INTCONST, line_number)
             else:
                 print(f"**** invalid integer constant: {literal}")
         
         elif re.match(CHARCONST, literal):
-            return Lexeme(literal, Token.CHARCONST)
+            return Lexeme(literal, Token.CHARCONST, line_number)
         
         elif re.match(CHARCONST_INVALID, literal):
             print(f"**** invalid character constant: {literal}")
         
         else:
-            return Lexeme(literal, Token.UNKNOWN)
+            return Lexeme(literal, Token.UNKNOWN, line_number)

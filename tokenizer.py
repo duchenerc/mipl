@@ -2,6 +2,7 @@
 import re
 
 WHITESPACE = re.compile(r"\s")
+NEWLINE = re.compile(r"\n")
 IDENT_START = re.compile(r"[a-zA-Z_]")
 IDENT_BODY = re.compile(r"\w")
 DIGIT = re.compile(r"\d")
@@ -41,8 +42,14 @@ class Tokenizer:
         tokstart = 0
         tokend = 0
 
+        current_line = 1
+
         while tokstart < len(operand):
             while re.match(WHITESPACE, operand[tokstart]):
+
+                if re.match(NEWLINE, operand[tokstart]):
+                    current_line += 1
+
                 tokstart += 1
                 if tokstart >= len(operand):
                     break
@@ -99,7 +106,7 @@ class Tokenizer:
             
             # print(filestr[tokstart:tokend])
 
-            tokens.append(operand[tokstart:tokend])
+            tokens.append((operand[tokstart:tokend], current_line))
             tokstart = tokend
 
         return tokens

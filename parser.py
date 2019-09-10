@@ -434,10 +434,10 @@ def parse(nonterminal, token, lexer):
                     if term == token.kind:
                         token = lexer.next()
                     else:
-                        raise MiplSyntaxError("syntax error")
+                        raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
                 else: # is a nonterminal
                     token = parse(term, token, lexer)
             
             return token
     
-    raise MiplSyntaxError("syntax error")
+    raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
