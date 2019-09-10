@@ -2,7 +2,7 @@ from enum import Enum
 import re
 
 IDENT = re.compile("[a-zA-Z_]\w*")
-INTCONST = re.compile("\d+")
+INTCONST = re.compile(r"\-?\d+")
 CHARCONST = re.compile("\'.\'")
 CHARCONST_INVALID = re.compile("^\'")
 
@@ -141,7 +141,7 @@ class Lexer:
             return Lexeme(literal, Token.IDENT, line_number)
         
         elif re.match(INTCONST, literal):
-            if not (int(literal, 10) >> 31):
+            if not (abs(int(literal, 10)) >> 31):
                 return Lexeme(literal, Token.INTCONST, line_number)
             else:
                 print(f"**** invalid integer constant: {literal}")

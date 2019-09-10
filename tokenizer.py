@@ -86,7 +86,9 @@ class Tokenizer:
                     else:
                         tokend = tokstart + 1
 
-                
+            elif operand[tokstart] == "-":
+                while operand[tokend] in "0123456789":
+                    tokend += 1
             
             elif operand[tokstart] == ".":
                 if operand[tokend] == ".":
