@@ -62,6 +62,10 @@ class Tokenizer:
 
             if operand[tokend-1:tokend+1] == "(*":
                 while tokend < len(operand) and operand[tokend-1:tokend+1] != "*)":
+
+                    if re.match(NEWLINE, operand[tokend]):
+                        current_line += 1
+
                     tokend += 1
                 
                 tokstart = tokend + 1
