@@ -1,5 +1,5 @@
 
-from lexer import Token
+from lexer import Terminal
 from enum import Enum
 
 from errors import MiplSyntaxError
@@ -56,15 +56,15 @@ class Nonterminal(Enum):
 GRAMMAR = {
 
     Nonterminal.PROGLBL: [[
-        Token.PROG,
+        Terminal.PROG,
     ]],
 
     Nonterminal.PROG: [[
         Nonterminal.PROGLBL,
-        Token.IDENT,
-        Token.SCOLON,
+        Terminal.IDENT,
+        Terminal.SCOLON,
         Nonterminal.BLOCK,
-        Token.DOT
+        Terminal.DOT
     ]],
 
     Nonterminal.BLOCK: [[
@@ -75,9 +75,9 @@ GRAMMAR = {
 
     Nonterminal.VARDECPART: [
         [
-            Token.VAR,
+            Terminal.VAR,
             Nonterminal.VARDEC,
-            Token.SCOLON,
+            Terminal.SCOLON,
             Nonterminal.VARDECLST,
         ],
         [],
@@ -86,7 +86,7 @@ GRAMMAR = {
     Nonterminal.VARDECLST: [
         [
             Nonterminal.VARDEC,
-            Token.SCOLON,
+            Terminal.SCOLON,
             Nonterminal.VARDECLST,
         ],
         [],
@@ -95,17 +95,17 @@ GRAMMAR = {
     Nonterminal.VARDEC: [[
         Nonterminal.IDENT,
         Nonterminal.IDENTLST,
-        Token.COLON,
+        Terminal.COLON,
         Nonterminal.TYPE,
     ]],
 
     Nonterminal.IDENT: [[
-        Token.IDENT
+        Terminal.IDENT
     ]],
 
     Nonterminal.IDENTLST: [
         [
-            Token.COMMA,
+            Terminal.COMMA,
             Nonterminal.IDENT,
             Nonterminal.IDENTLST,
         ],
@@ -118,34 +118,34 @@ GRAMMAR = {
     ],
 
     Nonterminal.ARRAY: [[
-        Token.ARRAY,
-        Token.LBRACK,
+        Terminal.ARRAY,
+        Terminal.LBRACK,
         Nonterminal.IDXRANGE,
-        Token.RBRACK,
-        Token.OF,
+        Terminal.RBRACK,
+        Terminal.OF,
         Nonterminal.SIMPLE,
     ]],
 
     Nonterminal.IDX: [[
-        Token.INTCONST
+        Terminal.INTCONST
     ]],
 
     Nonterminal.IDXRANGE: [[
         Nonterminal.IDX,
-        Token.DOTDOT,
+        Terminal.DOTDOT,
         Nonterminal.IDX
     ]],
 
     Nonterminal.SIMPLE: [
-        [ Token.INT ],
-        [ Token.CHAR ],
-        [ Token.BOOL ],
+        [ Terminal.INT ],
+        [ Terminal.CHAR ],
+        [ Terminal.BOOL ],
     ],
 
     Nonterminal.PROCDECPART: [
         [
             Nonterminal.PROCDEC,
-            Token.SCOLON,
+            Terminal.SCOLON,
             Nonterminal.PROCDECPART,
         ],
         [],
@@ -157,9 +157,9 @@ GRAMMAR = {
     ]],
 
     Nonterminal.PROCHDR: [[
-        Token.PROC,
-        Token.IDENT,
-        Token.SCOLON,
+        Terminal.PROC,
+        Terminal.IDENT,
+        Terminal.SCOLON,
     ]],
 
     Nonterminal.STMTPART: [[
@@ -167,15 +167,15 @@ GRAMMAR = {
     ]],
 
     Nonterminal.COMPOUND: [[
-        Token.BEGIN,
+        Terminal.BEGIN,
         Nonterminal.STMT,
         Nonterminal.STMTLST,
-        Token.END
+        Terminal.END
     ]],
 
     Nonterminal.STMTLST: [
         [
-            Token.SCOLON,
+            Terminal.SCOLON,
             Nonterminal.STMT,
             Nonterminal.STMTLST,
         ],
@@ -193,7 +193,7 @@ GRAMMAR = {
 
     Nonterminal.ASSIGN: [[
         Nonterminal.VARIABLE,
-        Token.ASSIGN,
+        Terminal.ASSIGN,
         Nonterminal.EXPR,
     ]],
 
@@ -202,20 +202,20 @@ GRAMMAR = {
     ]],
 
     Nonterminal.PROCIDENT: [[
-        Token.IDENT
+        Terminal.IDENT
     ]],
 
     Nonterminal.READ: [[
-        Token.READ,
-        Token.LPAREN,
+        Terminal.READ,
+        Terminal.LPAREN,
         Nonterminal.INPUTVAR,
         Nonterminal.INPUTLST,
-        Token.RPAREN,
+        Terminal.RPAREN,
     ]],
 
     Nonterminal.INPUTLST: [
         [
-            Token.COMMA,
+            Terminal.COMMA,
             Nonterminal.INPUTVAR,
             Nonterminal.INPUTLST,
         ],
@@ -227,16 +227,16 @@ GRAMMAR = {
     ]],
 
     Nonterminal.WRITE: [[
-        Token.WRITE,
-        Token.LPAREN,
+        Terminal.WRITE,
+        Terminal.LPAREN,
         Nonterminal.OUTPUT,
         Nonterminal.OUTPUTLST,
-        Token.RPAREN
+        Terminal.RPAREN
     ]],
 
     Nonterminal.OUTPUTLST: [
         [
-            Token.COMMA,
+            Terminal.COMMA,
             Nonterminal.OUTPUT,
             Nonterminal.OUTPUTLST,
         ],
@@ -248,25 +248,25 @@ GRAMMAR = {
     ]],
 
     Nonterminal.CONDITION: [[
-        Token.IF,
+        Terminal.IF,
         Nonterminal.EXPR,
-        Token.THEN,
+        Terminal.THEN,
         Nonterminal.STMT,
         Nonterminal.ELSEPART,
     ]],
 
     Nonterminal.ELSEPART: [
         [
-            Token.ELSE,
+            Terminal.ELSE,
             Nonterminal.STMT,
         ],
         [],
     ],
 
     Nonterminal.WHILE: [[
-        Token.WHILE,
+        Terminal.WHILE,
         Nonterminal.EXPR,
-        Token.DO,
+        Terminal.DO,
         Nonterminal.STMT,
     ]],
 
@@ -320,66 +320,66 @@ GRAMMAR = {
             Nonterminal.CONST,
         ],
         [
-            Token.LPAREN,
+            Terminal.LPAREN,
             Nonterminal.EXPR,
-            Token.RPAREN,
+            Terminal.RPAREN,
         ],
         [
-            Token.NOT,
+            Terminal.NOT,
             Nonterminal.FACTOR
         ],
     ],
 
     Nonterminal.SIGN: [
-        [ Token.PLUS ],
-        [ Token.MINUS ],
+        [ Terminal.PLUS ],
+        [ Terminal.MINUS ],
         [],
     ],
 
     Nonterminal.ADDOP: [
-        [ Token.PLUS ],
-        [ Token.MINUS ],
-        [ Token.OR ],
+        [ Terminal.PLUS ],
+        [ Terminal.MINUS ],
+        [ Terminal.OR ],
     ],
 
     Nonterminal.MULTOP: [
-        [ Token.MULT ],
-        [ Token.DIV ],
-        [ Token.AND ],
+        [ Terminal.MULT ],
+        [ Terminal.DIV ],
+        [ Terminal.AND ],
     ],
 
     Nonterminal.RELOP: [
-        [ Token.LT ],
-        [ Token.LE ],
-        [ Token.NE ],
-        [ Token.EQ ],
-        [ Token.GT ],
-        [ Token.GE ],
+        [ Terminal.LT ],
+        [ Terminal.LE ],
+        [ Terminal.NE ],
+        [ Terminal.EQ ],
+        [ Terminal.GT ],
+        [ Terminal.GE ],
     ],
 
     Nonterminal.VARIABLE: [[
-        Token.IDENT,
+        Terminal.IDENT,
         Nonterminal.IDXVAR,
     ]],
 
     Nonterminal.IDXVAR: [
         [
-            Token.LBRACK,
+            Terminal.LBRACK,
             Nonterminal.EXPR,
-            Token.RBRACK,
+            Terminal.RBRACK,
         ],
         [],
     ],
 
     Nonterminal.CONST: [
-        [ Token.INTCONST ],
-        [ Token.CHARCONST ],
+        [ Terminal.INTCONST ],
+        [ Terminal.CHARCONST ],
         [ Nonterminal.BOOLCONST ],
     ],
 
     Nonterminal.BOOLCONST: [
-        [ Token.TRUE ],
-        [ Token.FALSE ],
+        [ Terminal.TRUE ],
+        [ Terminal.FALSE ],
     ],
 
 }
@@ -393,7 +393,7 @@ def first(production):
     
     for term in production:
 
-        if isinstance(term, Token):
+        if isinstance(term, Terminal):
             first_set.append(term)
             break
 
@@ -424,14 +424,14 @@ def parse(nonterminal, token, lexer):
             print_nonterminal(nonterminal, production)
             return token
         
-        if token.kind in first(production):
+        if token.terminal in first(production):
 
             print_nonterminal(nonterminal, production)
 
             for term in production:
 
-                if isinstance(term, Token):
-                    if term == token.kind:
+                if isinstance(term, Terminal):
+                    if term == token.terminal:
                         token = lexer.next()
                     else:
                         raise MiplSyntaxError(f"Line {token.line_number}: syntax error")

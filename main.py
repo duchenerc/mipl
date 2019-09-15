@@ -1,14 +1,8 @@
 
-
 import os
-import re
 import sys
-from pprint import pprint
-import string
 
-from tokenizer import Tokenizer
 from lexer import Lexer
-
 from parser import parse, Nonterminal
 
 if len(sys.argv) < 2:
@@ -16,8 +10,7 @@ if len(sys.argv) < 2:
 
 filename = sys.argv[1]
 
-tokenizer = Tokenizer(filename)
-lexer = Lexer(tokenizer)
+lexer = Lexer(filename)
 
 token = lexer.next()
 try:
