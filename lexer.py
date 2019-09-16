@@ -1,4 +1,5 @@
 from enum import Enum
+from elements import Terminal
 from errors import MiplInvalidConst
 import re
 
@@ -31,58 +32,6 @@ CHARCONST = re.compile("\'.\'")
 
 # matches invalid character literals
 CHARCONST_INVALID = re.compile("^\'")
-
-
-class Terminal(Enum):
-    """
-    A 
-    """
-    ASSIGN = "T_ASSIGN"
-    MULT = "T_MULT"
-    PLUS = "T_PLUS"
-    MINUS = "T_MINUS"
-    DIV = "T_DIV"
-    AND = "T_AND"
-    OR = "T_OR"
-    NOT = "T_NOT"
-    LT = "T_LT"
-    GT = "T_GT"
-    LE = "T_LE"
-    GE = "T_GE"
-    EQ = "T_EQ"
-    NE = "T_NE"
-    VAR = "T_VAR"
-    ARRAY = "T_ARRAY"
-    OF = "T_OF"
-    BOOL = "T_BOOL"
-    CHAR = "T_CHAR"
-    INT = "T_INT"
-    PROG = "T_PROG"
-    PROC = "T_PROC"
-    BEGIN = "T_BEGIN"
-    END = "T_END"
-    WHILE = "T_WHILE"
-    DO = "T_DO"
-    IF = "T_IF"
-    THEN = "T_THEN"
-    ELSE = "T_ELSE"
-    READ = "T_READ"
-    WRITE = "T_WRITE"
-    TRUE = "T_TRUE"
-    FALSE = "T_FALSE"
-    LBRACK = "T_LBRACK"
-    RBRACK = "T_RBRACK"
-    SCOLON = "T_SCOLON"
-    COLON = "T_COLON"
-    LPAREN = "T_LPAREN"
-    RPAREN = "T_RPAREN"
-    COMMA = "T_COMMA"
-    DOT = "T_DOT"
-    DOTDOT = "T_DOTDOT"
-    IDENT = "T_IDENT"
-    INTCONST = "T_INTCONST"
-    CHARCONST = "T_CHARCONST"
-    UNKNOWN = "UNKNOWN"
 
 KEYWORDS = {
     ":=": Terminal.ASSIGN,
