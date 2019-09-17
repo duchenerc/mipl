@@ -22,3 +22,5 @@ except StopIteration:
     print("---- Completed parsing ----")
 except Exception as e:
     print(e)
+else:
+    print("Syntax error: unexpected chars at end of program!")

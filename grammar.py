@@ -54,7 +54,10 @@ class Grammar():
                         else:
                             raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
                     else: # is a nonterminal
-                        token = self.parse(term, token, lexer)
+                        try:
+                            token = self.parse(term, token, lexer)
+                        except StopIteration:
+                            raise MiplSyntaxError(f"Syntax error: line {token.line_number}")
                 
                 return token
         

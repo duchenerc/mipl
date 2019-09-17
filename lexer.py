@@ -117,6 +117,13 @@ class Lexer:
         else:
             raise StopIteration
     
+    def get_tokens(self):
+
+        for lexeme in self.lexemes:
+            token = self.process_lexeme(lexeme)
+            print(token)
+            yield token
+    
     def _tokenize(self, filename):
         """
         Reads in the passed file and breaks apart text into lexemes.
