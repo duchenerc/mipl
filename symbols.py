@@ -1,5 +1,5 @@
 
-from enum import Enum, IntEnum
+from enum import Enum
 
 class MiplSymbolCreationError(Exception):
     pass
@@ -7,18 +7,18 @@ class MiplSymbolCreationError(Exception):
 class MiplSymbolAccessError(Exception):
     pass
 
-class SymbolType(IntEnum):
+class SymbolType(Enum):
     INVALID = 0
-    BOOL = 1
-    INT = 2
-    CHAR = 3
-    ARRAY = 4
+    BOOL = "BOOLEAN"
+    INT = "INTEGER"
+    CHAR = "CHAR"
+    ARRAY = "ARRAY"
 
 class SymbolCat(Enum):
-    INVALID = "SYMBOL_INVALID"
-    PROGRAM = "SYMBOL_PROGRAM"
-    PROCEDURE = "SYMBOL_PROCEDURE"
-    VARIABLE = "SYMBOL_VARIABLE"
+    INVALID = "INVALID"
+    PROGRAM = "PROGRAM"
+    PROCEDURE = "PROCEDURE"
+    VARIABLE = "VARIABLE"
 
 SYMBOL_ATTRS = (
     "type",
@@ -48,7 +48,7 @@ class Symbol():
                 self._sym_data["type"] = kwargs.pop("type")
 
                 # handle array special parts
-                if self._sym_type == SymbolType.ARRAY:
+                if self._sym_data["type"] == SymbolType.ARRAY:
                     if "bounds" in kwargs.keys():
                         self._sym_data["bounds"] = kwargs.pop("bounds")
                     else:
@@ -103,3 +103,46 @@ class Symbol():
             raise MiplSymbolAccessError(f"Symbol type {self._sym_data['type'].value} is not array") 
 
         return self._sym_data["base_type"]
+
+class MiplMultiplyDefinedIdentifierError(Exception):
+    pass
+
+class MiplUndeclaredIdentifierError(Exception):
+    pass
+
+class SymbolTable():
+
+    def __init__(self):
+
+        self._symbols = [dict()]
+
+    def scope_enter(self):
+        print("\n\n>>> Entering new scope...")
+        self._symbols.append(dict())
+    
+    def scope_exit(self):
+        print("\n<<< Exiting scope...")
+        self._symbols.pop()
+    
+    def this_scope(self):
+        return self._symbols[-1].keys()
+    
+    def new_id(self, sym):
+        if sym.sym_name in self._symbols[-1].keys():
+            raise MiplMultiplyDefinedIdentifierError(f"Identifier {sym.sym_name} already definied in current scope")
+
+        self._symbols[-1][sym.sym_name] = sym
+    
+    def __getitem__(self, sym_name):
+        for table in self._symbols[::-1]:
+            if sym_name in table.keys():
+                return table[sym_name]
+
+        raise MiplUndeclaredIdentifierError(f"Identifier {sym_name} is undeclared")
+    
+    def __contains__(self, sym_name):
+        for table in self._symbols[::-1]:
+            if sym_name in table.keys():
+                return True
+        
+        return False
