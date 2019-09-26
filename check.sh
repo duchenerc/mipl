@@ -46,7 +46,7 @@ for i in $inputs; do
         head "$REPORTS/$filename"
     else
         passes=$[ $passes + 1 ]
-        echo "check: ${green}[pass]${reset} $testname"
+        # echo "check: ${green}[pass]${reset} $testname"
     fi
 
 done

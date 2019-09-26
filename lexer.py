@@ -111,7 +111,7 @@ class Lexer:
 
         if self.last_lexeme < len(self.lexemes):
             tok = self.process_lexeme(self.lexemes[self.last_lexeme])
-            print(tok)
+            # print(tok)
             return tok
 
         else:
@@ -121,7 +121,7 @@ class Lexer:
 
         for lexeme in self.lexemes:
             token = self.process_lexeme(lexeme)
-            print(token)
+            # print(token)
             yield token
     
     def _tokenize(self, filename):

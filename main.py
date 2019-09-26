@@ -19,7 +19,7 @@ try:
     # parse(Nonterminal.PROG, token, lexer)
     mipl.parse(Nonterminal.PROG, token, lexer)
 except StopIteration:
-    print("---- Completed parsing ----")
+    print("\n---- Completed parsing ----")
 except Exception as e:
     print(e)
 else:
