@@ -2,7 +2,7 @@ from enum import Enum
 
 class Terminal(Enum):
     """
-    A 
+    A terminal, or a classification for a lexeme.
     """
     ASSIGN = "T_ASSIGN"
     MULT = "T_MULT"
@@ -52,6 +52,10 @@ class Terminal(Enum):
     UNKNOWN = "UNKNOWN"
 
 class Nonterminal(Enum):
+    """
+    A nonterminal, representing a set of productions,
+    with each production consisting of a list of terminals and nonterminals
+    """
     PROG = "N_PROG"
     PROGLBL = "N_PROGLBL"
     BLOCK = "N_BLOCK"

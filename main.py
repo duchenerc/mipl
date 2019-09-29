@@ -6,10 +6,7 @@ from lexer import Lexer
 from elements import Nonterminal
 from rules import mipl
 
-if len(sys.argv) < 2:
-    raise Exception("No input file provided")
-
-filename = sys.argv[1]
+filename = input("Enter filename: ") if len(sys.argv) < 2 else sys.argv[1]
 
 lexer = Lexer(filename)
 

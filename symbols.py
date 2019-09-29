@@ -8,7 +8,7 @@ class MiplSymbolAccessError(Exception):
     pass
 
 class SymbolType(Enum):
-    INVALID = 0
+    INVALID = "INVALID"
     BOOL = "BOOLEAN"
     INT = "INTEGER"
     CHAR = "CHAR"
@@ -28,7 +28,10 @@ SYMBOL_ATTRS = (
 )
 
 class Symbol():
-    
+    """
+    An identifier and associated information.
+    """
+
     def __init__(self, sym_name, sym_cat, **kwargs):
         self._sym_name = sym_name
         self._sym_cat = sym_cat
@@ -111,23 +114,39 @@ class MiplUndeclaredIdentifierError(Exception):
     pass
 
 class SymbolTable():
+    """
+    A database of symbols.
+    """
 
     def __init__(self):
 
         self._symbols = [dict()]
 
     def scope_enter(self):
+        """
+        Create a new scope.
+        """
+
         print("\n\n>>> Entering new scope...")
         self._symbols.append(dict())
     
     def scope_exit(self):
+        """
+        Delete the current scope.
+        """
         print("\n<<< Exiting scope...")
         self._symbols.pop()
     
     def this_scope(self):
+        """
+        Returns a list of identifiers for the symbols in the curent scope.
+        """
         return self._symbols[-1].keys()
     
     def new_id(self, sym):
+        """
+        Creates a new symbol in the current scope.
+        """
         if sym.sym_name in self._symbols[-1].keys():
             raise MiplMultiplyDefinedIdentifierError(f"Identifier {sym.sym_name} already definied in current scope")
 

@@ -1,6 +1,5 @@
 from enum import Enum
 from elements import Terminal
-from errors import MiplInvalidConst
 import re
 
 # matches whitespace
@@ -88,6 +87,9 @@ class Token:
     
     def __str__(self):
         return f"TOKEN: {self.terminal.value} LEXEME: {self.lexeme}"
+
+class MiplInvalidConst(Exception):
+    pass
 
 class Lexer:
     """
