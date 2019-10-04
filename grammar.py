@@ -1,4 +1,5 @@
 from functools import wraps
+from pprint import pprint
 
 from symbols import Symbol, SymbolTable
 
@@ -30,6 +31,12 @@ class Grammar():
         # the generated will be nexted once for each value in the production
         self.production_funcs = dict()
 
+        # store a list of hints for this grammar
+        # a nonterminal maps to a function
+        # whenever the nonterminal is encountered in an anbiguous context,
+        # this function resolves that ambiguity given the parser's current state
+        self.hints = dict()
+
         # keep a symbol table
         self.symbol_table = SymbolTable()
 
@@ -59,49 +66,75 @@ class Grammar():
 
         return decorator_production
     
+    def hint(self, nonterminal):
+        """
+        Decorator that resolves ambiguous generations for a given nonterminal.
+        """
+
+        def decorator_hint(target):
+            self.hints[nonterminal] = target
+            return target
+
+        return decorator_hint
+    
     def parse(self, nonterminal, token, lexer):
-        rule = self.rules[nonterminal]
+        rules = self.rules[nonterminal]
 
-        for production in rule:
+        # check for hints
+        if nonterminal in self.hints.keys():
+            # get a list of all possible productions for this nonterminal
+            # that this terminal can start
+            possible = [x for x in self.rules[nonterminal] if token.terminal in self.first(x)]
 
-            # if this production is epsilon, take it immediately
-            if len(production) == 0:
-                producer = self.production_funcs[(nonterminal, production)]
-                producer_gen = producer(self.symbol_table)
-                return token, next(producer_gen)
-            
-            # if this terminal is in the first() set, take it
-            if token.terminal in self.first(production):
-                
-                # look up the defined producer generator for this production
-                producer = self.production_funcs[(nonterminal, production)]
-                producer_gen = producer(self.symbol_table)
-                next(producer_gen)
+            # call the hint function that can resolve the ambiguity
+            # give it the list of possible productions and some context
+            production = self.hints[nonterminal](possible, token, self.symbol_table)
 
-                prod = None
+            # use that production
+            return self.produce(nonterminal, production, token, lexer)
 
-                for term in production:
+        else:
+            for production in rules:
 
-                    # if this is a terminal, process it
-                    if isinstance(term, self.terminal_class):
-                        prod = producer_gen.send(token)
-                        if term == token.terminal:
-                            token = lexer.next()
-                        else:
-                            raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
-                    
-                    # if this is a nonterminal, recursive call
-                    else:
-                        try:
-                            token, prod = self.parse(term, token, lexer)
-                            prod = producer_gen.send(prod)
-                        except StopIteration:
-                            raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
-                
-                # finally, return the next token and the value produced by this nonterminal
-                return token, prod
+                # if this production is epsilon, take it immediately
+                # if this terminal can start this production, take it immediately
+                if len(production) == 0 or token.terminal in self.first(production):
+                    return self.produce(nonterminal, production, token, lexer)
         
         raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
+
+    
+    def produce(self, nonterminal, production, token, lexer):
+        producer = self.production_funcs[(nonterminal, production)](self.symbol_table)
+
+        # print_nonterminal(nonterminal, production)
+
+        if len(production) == 0:
+            return token, next(producer)
+        else:
+            next(producer)
+
+        prod = None
+
+        for term in production:
+            # if this is a terminal, process it
+            if isinstance(term, self.terminal_class):
+                prod = producer.send(token)
+                if term == token.terminal:
+                    token = lexer.next()
+                else:
+                    raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
+            
+            # if this is a nonterminal, recursive call
+            else:
+                try:
+                    token, prod = self.parse(term, token, lexer)
+                    prod = producer.send(prod)
+                except StopIteration:
+                    raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
+        
+        # finally, return the next token and the value produced by this production
+        return token, prod
 
     def first(self, production):
         """

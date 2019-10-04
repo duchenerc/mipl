@@ -127,14 +127,14 @@ class SymbolTable():
         Create a new scope.
         """
 
-        print("\n\n>>> Entering new scope...")
+        # print("\n\n>>> Entering new scope...")
         self._symbols.append(dict())
     
     def scope_exit(self):
         """
         Delete the current scope.
         """
-        print("\n<<< Exiting scope...")
+        # print("\n<<< Exiting scope...")
         self._symbols.pop()
     
     def this_scope(self):
