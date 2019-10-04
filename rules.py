@@ -1,9 +1,11 @@
 from grammar import Grammar
 from elements import Terminal as T, Nonterminal as NT
-from pprint import pprint
-from symbols import Symbol, SymbolTable, SymbolCat, SymbolType, MiplMultiplyDefinedIdentifierError, MiplUndeclaredIdentifierError
+from symbols import *
 
 mipl = Grammar(NT, T)
+
+class MiplSemanticError(Exception):
+    pass
 
 def print_symbol_add(sym: Symbol):
     t = sym.sym_cat if sym.sym_cat != SymbolCat.VARIABLE else sym.var_type
@@ -192,12 +194,16 @@ def p_index(symbol_table: SymbolTable):
     NT.IDX
 ))
 def p_index_range(symbol_table: SymbolTable):
-    prod = yield
-    left_bound = prod
-    prod = yield
-    prod = yield
-    right_bound = prod
-    yield (left_bound, right_bound)
+    left_bound = yield
+    tok = yield
+    right_bound = yield
+
+    line_number = tok.line_number
+
+    if left_bound > right_bound:
+        raise MiplSemanticError(f"Line {line_number}: Start index must be less than or equal to end index of array")
+
+    yield left_bound, right_bound
 
 @mipl.production(NT.SIMPLE, (T.INT,))
 def p_simple_int(symbol_table: SymbolTable):
@@ -353,9 +359,20 @@ def p_statement_compound(symbol_table: SymbolTable):
     NT.EXPR
 ))
 def p_assign(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    prod = yield
+    var_type = yield
+    tok = yield
+    line_number = tok.line_number
+
+    expr_type = yield
+
+    if var_type != expr_type:
+
+        if SymbolType.ARRAY in (var_type, expr_type):
+            raise MiplSemanticError(f"Line {line_number}: Array variable must be indexed")
+        else:
+
+            raise MiplSemanticError(f"Line {line_number}: Expression must be of same type as variable")
+
     yield
 
 @mipl.production(NT.PROCSTMT, (NT.PROCIDENT,))
@@ -377,8 +394,14 @@ def p_procedure_identifier(symbol_table: SymbolTable):
 ))
 def p_read(symbol_table: SymbolTable):
     prod = yield
-    prod = yield
-    prod = yield
+    tok = yield
+    line_number = tok.line_number
+
+    var_type = yield
+
+    if var_type not in (SymbolType.INT, SymbolType.CHAR):
+        raise MiplSemanticError(f"Line {line_number}: Input variable must be of type integer or char")
+
     prod = yield
     prod = yield
     yield
@@ -389,20 +412,24 @@ def p_read(symbol_table: SymbolTable):
     NT.INPUTLST
 ))
 def p_input_list(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
+    tok = yield
+    line_number = tok.line_number
+    var_type = yield
+
+    if var_type not in (SymbolType.INT, SymbolType.CHAR):
+        raise MiplSemanticError(f"Line {line_number}: Input variable must be of type integer or type char")
+
     prod = yield
     yield
 
 @mipl.production(NT.INPUTLST, ())
 def p_input_lst_epsilon(symbol_table: SymbolTable):
     yield
-    yield
 
 @mipl.production(NT.INPUTVAR, (NT.VARIABLE,))
 def p_input_variable(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    var_type = yield
+    yield var_type
 
 @mipl.production(NT.WRITE, (
     T.WRITE,
@@ -413,8 +440,13 @@ def p_input_variable(symbol_table: SymbolTable):
 ))
 def p_write(symbol_table: SymbolTable):
     prod = yield
-    prod = yield
-    prod = yield
+    tok = yield
+    line_number = tok.line_number
+    output_type = yield
+
+    if output_type not in (SymbolType.INT, SymbolType.CHAR):
+        raise MiplSemanticError(f"Line {line_number}: Output expression must be of type integer or char")
+
     prod = yield
     prod = yield
     yield
@@ -425,20 +457,25 @@ def p_write(symbol_table: SymbolTable):
     NT.OUTPUTLST
 ))
 def p_output_list(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
+    tok = yield
+    line_number = tok.line_number
+
+    output_type = yield
+
+    if output_type not in (SymbolType.INT, SymbolType.CHAR):
+        raise MiplSemanticError(f"Line {line_number}: Output expression must be of type integer or char")
+
     prod = yield
     yield
 
 @mipl.production(NT.OUTPUTLST, ())
 def p_output_list_epsilon(symbol_table: SymbolTable):
     yield
-    yield
 
 @mipl.production(NT.OUTPUT, (NT.EXPR,))
 def p_output(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    expr_type = yield
+    yield expr_type
 
 @mipl.production(NT.CONDITION, (
     T.IF,
@@ -448,8 +485,14 @@ def p_output(symbol_table: SymbolTable):
     NT.ELSEPART
 ))
 def p_condition(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
+    tok = yield
+    line_number = tok.line_number
+
+    condition_type = yield
+
+    if condition_type != SymbolType.BOOL:
+        raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
+
     prod = yield
     prod = yield
     prod = yield
@@ -476,8 +519,15 @@ def p_elsepart_epsilon(symbol_table: SymbolTable):
     NT.STMT
 ))
 def p_while(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
+    tok = yield
+
+    line_number = tok.line_number
+
+    expr_type = yield
+
+    if expr_type != SymbolType.BOOL:
+        raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
+
     prod = yield
     prod = yield
     yield
@@ -487,32 +537,39 @@ def p_while(symbol_table: SymbolTable):
     NT.OPEXPR
 ))
 def p_expr(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    yield
+    lhs_type = yield
+    rhs_type, line_number = yield
+
+    if rhs_type == SymbolType.INVALID:
+        yield lhs_type
+
+    if rhs_type != lhs_type:
+        raise MiplSemanticError(f"Line {line_number}: Expressions must both be int, or both char, or both boolean")
+    
+    # if there's a relop, we return bool
+    yield SymbolType.BOOL
 
 @mipl.production(NT.OPEXPR, (
     NT.RELOP,
     NT.SIMPLEEXPR
 ))
 def p_opexpr(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    yield
+    op, line_number = yield
+    expr_type = yield
+    yield expr_type, line_number
 
 @mipl.production(NT.OPEXPR, ())
 def p_opexpr_epsilon(symbol_table: SymbolTable):
-    yield
-    yield
+    yield SymbolType.INVALID, -1
 
 @mipl.production(NT.SIMPLEEXPR, (
     NT.TERM,
     NT.ADDOPLST
 ))
 def p_simpleexpr(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    yield
+    term_type = yield
+    op_list = yield
+    yield term_type
 
 @mipl.production(NT.ADDOPLST, (
     NT.ADDOP,
@@ -520,14 +577,19 @@ def p_simpleexpr(symbol_table: SymbolTable):
     NT.ADDOPLST
 ))
 def p_addition_op_list(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    prod = yield
-    yield
+    op, line_number = yield
+    term_type = yield
+    op_list = yield
+
+    is_mathexpr = op in (T.PLUS, T.MINUS)
+
+    if is_mathexpr and term_type != SymbolType.INT:
+        raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
+
+    yield SymbolType.INT if is_mathexpr else SymbolType.BOOL
 
 @mipl.production(NT.ADDOPLST, ())
 def p_addition_op_list_epsilon(symbol_table: SymbolTable):
-    yield
     yield
 
 @mipl.production(NT.TERM, (
@@ -535,9 +597,9 @@ def p_addition_op_list_epsilon(symbol_table: SymbolTable):
     NT.MULTOPLST
 ))
 def p_term(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    yield
+    factor_type = yield
+    op_list = yield
+    yield factor_type
 
 @mipl.production(NT.MULTOPLST, (
     NT.MULTOP,
@@ -545,14 +607,19 @@ def p_term(symbol_table: SymbolTable):
     NT.MULTOPLST
 ))
 def p_multiplication_op_list(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    prod = yield
-    yield
+    op, line_number = yield
+    factor_type = yield
+    op_list = yield
+    
+    is_math_expr = op in (T.MULT, T.DIV)
+
+    if is_math_expr and factor_type != SymbolType.INT:
+        raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
+
+    yield SymbolType.INT if is_math_expr else SymbolType.BOOL
 
 @mipl.production(NT.MULTOPLST, ())
 def p_multiplication_op_list_epsilon(symbol_table: SymbolTable):
-    yield
     yield
 
 @mipl.production(NT.FACTOR, (
@@ -560,16 +627,20 @@ def p_multiplication_op_list_epsilon(symbol_table: SymbolTable):
     NT.VARIABLE
 ))
 def p_factor_variable(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    yield
+    sign_produced, line_number = yield
+    var_type = yield
+
+    if sign_produced and var_type != SymbolType.INT:
+        raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
+
+    yield var_type
 
 @mipl.production(NT.FACTOR, (
     NT.CONST,
 ))
 def p_factor_const(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    const_type = yield
+    yield const_type
 
 @mipl.production(NT.FACTOR, (
     T.LPAREN,
@@ -578,108 +649,122 @@ def p_factor_const(symbol_table: SymbolTable):
 ))
 def p_factor_expr(symbol_table: SymbolTable):
     prod = yield
+    expr_type = yield
     prod = yield
-    prod = yield
-    yield
+    yield expr_type
 
 @mipl.production(NT.FACTOR, (
     T.NOT,
     NT.FACTOR
 ))
 def p_factor_not(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    yield
+    tok = yield
+    line_number = tok.line_number
+
+    factor_type = yield
+
+    if factor_type != SymbolType.BOOL:
+        raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
+
+    yield SymbolType.BOOL
 
 @mipl.production(NT.SIGN, (T.PLUS,))
 def p_sign_plus(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield True, tok.line_number
 
 @mipl.production(NT.SIGN, (T.MINUS,))
 def p_sign_minus(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield True, tok.line_number
 
 @mipl.production(NT.SIGN, ())
 def p_sign_epsilon(symbol_table: SymbolTable):
-    yield
-    yield
+    yield False, None
 
 @mipl.production(NT.ADDOP, (T.PLUS,))
 def p_addition_op_plus(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.PLUS, tok.line_number
 
 @mipl.production(NT.ADDOP, (T.MINUS,))
 def p_addition_op_minus(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.MINUS, tok.line_number
 
 @mipl.production(NT.ADDOP, (T.OR,))
 def p_addition_op_or(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.OR, tok.line_number
 
 @mipl.production(NT.MULTOP, (T.MULT,))
 def p_multiplication_op_mult(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.MULT, tok.line_number
 
 @mipl.production(NT.MULTOP, (T.DIV,))
 def p_multiplication_op_div(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.DIV, tok.line_number
 
 @mipl.production(NT.MULTOP, (T.AND,))
 def p_multiplication_op_and(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.AND, tok.line_number
 
 @mipl.production(NT.RELOP, (T.LT,))
 def p_relative_op_less(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.LT, tok.line_number
 
 @mipl.production(NT.RELOP, (T.LE,))
 def p_relative_op_lesseq(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.LE, tok.line_number
 
 @mipl.production(NT.RELOP, (T.NE,))
 def p_relative_op_noteq(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.NE, tok.line_number
 
 @mipl.production(NT.RELOP, (T.EQ,))
 def p_relative_op_eq(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.EQ, tok.line_number
 
 @mipl.production(NT.RELOP, (T.GT,))
 def p_relative_op_greater(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.GT, tok.line_number
 
 @mipl.production(NT.RELOP, (T.GE,))
 def p_relative_op_greatereq(symbol_table: SymbolTable):
-    prod = yield
-    yield
+    tok = yield
+    yield T.GE, tok.line_number
 
 @mipl.production(NT.VARIABLE, (
     T.IDENT,
     NT.IDXVAR
 ))
 def p_variable(symbol_table: SymbolTable):
-    prod = yield
+    tok = yield
 
-    ident = prod.lexeme
-    line_number = prod.line_number
+    ident = tok.lexeme
+    line_number = tok.line_number
     if ident not in symbol_table:
         raise MiplUndeclaredIdentifierError(f"Line {line_number}: Undefined identifier")
 
-    prod = yield
-    yield
+    sym: Symbol = symbol_table[ident]
+
+    if sym.sym_cat == SymbolCat.PROCEDURE:
+        raise MiplSemanticError(f"Line {line_number}: Procedure/variable mismatch")
+
+    indexed = yield
+
+    if indexed and sym.var_type != SymbolType.ARRAY:
+        raise MiplSemanticError(f"Line {line_number}: Indexed variable must be of array type")
+
+    yield sym.var_type if not indexed else sym.array_base_type
 
 @mipl.production(NT.IDXVAR, (
     T.LBRACK,
@@ -687,30 +772,35 @@ def p_variable(symbol_table: SymbolTable):
     T.RBRACK
 ))
 def p_index_variable(symbol_table: SymbolTable):
-    prod = yield
-    prod = yield
-    prod = yield
-    yield
+    token = yield
+    line_number = token.line_number
+
+    expr_type = yield
+
+    if expr_type != SymbolType.INT:
+        raise MiplSemanticError(f"Line {line_number}: Index expression must be of type integer")
+
+    token = yield
+    yield True
 
 @mipl.production(NT.IDXVAR, ())
 def p_index_variable_epsilon(symbol_table: SymbolTable):
-    yield
-    yield
+    yield False
 
 @mipl.production(NT.CONST, (T.INTCONST,))
 def p_constant_int(symbol_table: SymbolTable):
     prod = yield
-    yield
+    yield SymbolType.INT
 
 @mipl.production(NT.CONST, (T.CHARCONST,))
 def p_constant_char(symbol_table: SymbolTable):
     prod = yield
-    yield
+    yield SymbolType.CHAR
 
 @mipl.production(NT.CONST, (NT.BOOLCONST,))
 def p_constant_bool(symbol_table: SymbolTable):
     prod = yield
-    yield
+    yield SymbolType.BOOL
 
 @mipl.production(NT.BOOLCONST, (T.TRUE,))
 def p_constant_true(symbol_table: SymbolTable):

@@ -82,10 +82,10 @@ class Symbol():
     
     @property
     def var_type(self):
-        if self._sym_cat != SymbolCat.VARIABLE:
+        if self._sym_cat not in (SymbolCat.VARIABLE, SymbolCat.PROGRAM):
             raise MiplSymbolAccessError(f"Symbol category {self._sym_cat.value} does not have member type")
         
-        return self._sym_data["type"]
+        return self._sym_data["type"] if self._sym_cat == SymbolCat.VARIABLE else SymbolType.INVALID
     
     @property
     def array_bounds(self):

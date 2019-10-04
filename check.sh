@@ -18,7 +18,7 @@ green=`tput setaf 2`
 red=`tput setaf 1`
 reset=`tput sgr0`
 
-inputs=`find $INPUT -type f -iname "$1*.txt"`
+inputs=`find $INPUT -type f -iname "$1*.txt" | sort`
 fails=0
 passes=0
 
@@ -46,7 +46,7 @@ for i in $inputs; do
         head "$REPORTS/$filename"
     else
         passes=$[ $passes + 1 ]
-        # echo "check: ${green}[pass]${reset} $testname"
+        echo "check: ${green}[pass]${reset} $testname"
     fi
 
 done
