@@ -86,12 +86,16 @@ class Grammar():
             # that this terminal can start
             possible = [x for x in self.rules[nonterminal] if token.terminal in self.first(x)]
 
-            # call the hint function that can resolve the ambiguity
-            # give it the list of possible productions and some context
-            production = self.hints[nonterminal](possible, token, self.symbol_table)
+            if len(possible) > 0:
+                # call the hint function that can resolve the ambiguity
+                # give it the list of possible productions and some context
+                production = self.hints[nonterminal](possible, token, self.symbol_table)
 
-            # use that production
-            return self.produce(nonterminal, production, token, lexer)
+                # use that production
+                return self.produce(nonterminal, production, token, lexer)
+            
+            else:
+                raise MiplSyntaxError(f"Line: {token.line_number}: syntax error")
 
         else:
             for production in rules:
