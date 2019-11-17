@@ -38,6 +38,17 @@ class Symbol():
 
         self._sym_data = dict()
 
+        self.linkage = dict()
+
+        if "label" in kwargs.keys():
+            self.linkage["label"] = kwargs["label"]
+
+        if "nesting_lavel" in kwargs.keys():
+            self.linkage["nesting_level"] = kwargs["nesting_level"]
+        
+        if "words" in kwargs.keys():
+            self.linkage["words"] = kwargs["words"]
+
         # handle procedures
         if self._sym_cat == SymbolCat.PROCEDURE:
             if "parameters" in kwargs.keys():
@@ -120,7 +131,7 @@ class SymbolTable():
 
     def __init__(self):
 
-        self._symbols = [dict()]
+        self._symbols = []
 
     def scope_enter(self):
         """
@@ -143,6 +154,9 @@ class SymbolTable():
         """
         return self._symbols[-1].keys()
     
+    def nesting_level(self):
+        return len(self._symbols)
+    
     def new_id(self, sym):
         """
         Creates a new symbol in the current scope.
@@ -151,6 +165,14 @@ class SymbolTable():
             raise MiplMultiplyDefinedIdentifierError(f"Identifier {sym.sym_name} already definied in current scope")
 
         self._symbols[-1][sym.sym_name] = sym
+    
+    def overwrite_id(self, sym: Symbol):
+        for table in self._symbols[::-1]:
+            if sym.sym_name in table.keys():
+                table[sym.sym_name] = sym
+                return
+        
+        self.new_id(sym)
     
     def __getitem__(self, sym_name):
         for table in self._symbols[::-1]:

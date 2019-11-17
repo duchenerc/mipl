@@ -1,8 +1,19 @@
 from grammar import Grammar
 from elements import Terminal as T, Nonterminal as NT
 from symbols import *
+from oal import OalWriter, OalOpCode as OpCode
+
+DISPLAY = 20
+
+oal = OalWriter()
+l_globals = oal.label_id()
+l_stack = oal.label_id()
+l_code = oal.label_id()
+l_entry = oal.label_id()
 
 mipl = Grammar(NT, T)
+
+symbol_table = SymbolTable()
 
 class MiplSemanticError(Exception):
     pass
@@ -20,7 +31,7 @@ def print_symbol_add(sym: Symbol):
     # print("\n" + out)
 
 @mipl.production(NT.PROGLBL, (T.PROG,))
-def p_program_label(symbol_table: SymbolTable):
+def p_program_label(*args):
     prod = yield
     yield
 
@@ -31,11 +42,22 @@ def p_program_label(symbol_table: SymbolTable):
     NT.BLOCK,
     T.DOT
 ))
-def p_program(symbol_table: SymbolTable):
+def p_program(*args):
+
+    # set up oal output
+    init_instrx = (
+        oal.label(l_globals),
+        DISPLAY,
+        oal.label(l_stack),
+        oal.label(l_code),
+        oal.label(l_entry)
+    )
+
+    oal.add_instrx(OpCode.INIT, init_instrx)
+
     prod = yield
     prod = yield
     
-    # print("prog_ident")
     prog_ident = prod.lexeme
 
     prod = yield
@@ -50,21 +72,48 @@ def p_program(symbol_table: SymbolTable):
 
     symbol_table.new_id(sym)
 
+    # send symbol to new block
+    prod = yield sym
     prod = yield
-    prod = yield
+
+    # finish oal output
+    oal.add_instrx(OpCode.HALT)
+    oal.add_instrx(OpCode.BSS, (500), label=l_stack)
+    oal.add_instrx(OpCode.END)
+
     yield
+
+
 
 @mipl.production(NT.BLOCK, (
     NT.VARDECPART,
     NT.PROCDECPART,
     NT.STMTPART,
 ))
-def p_block(symbol_table: SymbolTable):
+def p_block(*args):
+    sym = args[0]
+    # get number of words from variable declarations
+    num_words = yield
+
+    if sym.sym_cat == SymbolCat.PROGRAM:
+        oal.add_instrx(OpCode.BSS, (num_words + DISPLAY), label=l_globals)
+        oal.add_instrx(OpCode.NONE, label=l_code)
+    
+    elif sym.sym_cat == SymbolCat.PROCEDURE:
+        sym.linkage["words"] = num_words
+        symbol_table.overwrite_id(sym)
+
     prod = yield
-    prod = yield
-    prod = yield
+
+    # print("  # Beginning of block's N_STMTPART")
+    prod = yield sym
+    # print("  # End of block's N_STMTPART")
+
+
     symbol_table.scope_exit()
-    yield
+    yield sym
+
+
 
 @mipl.production(NT.VARDECPART, (
     T.VAR,
@@ -72,33 +121,33 @@ def p_block(symbol_table: SymbolTable):
     T.SCOLON,
     NT.VARDECLST
 ))
-def p_variable_declaration_part(symbol_table: SymbolTable):
+def p_variable_declaration_part(*args):
     prod = yield
+    words_head = yield
     prod = yield
-    prod = yield
-    prod = yield
-    yield
+    
+    # the rest
+    words_tail = yield
+    yield words_head + words_tail
 
 @mipl.production(NT.VARDECPART, ())
-def p_variable_declaration_part_epsilon(symbol_table: SymbolTable):
-    yield
-    yield
+def p_variable_declaration_part_epsilon(*args):
+    yield 0
 
 @mipl.production(NT.VARDECLST, (
     NT.VARDEC,
     T.SCOLON,
     NT.VARDECLST
 ))
-def p_variable_declaration_list(symbol_table: SymbolTable):
+def p_variable_declaration_list(*args):
+    words_head = yield
     prod = yield
-    prod = yield
-    prod = yield
-    yield
+    words_tail = yield
+    yield words_head + words_tail
 
 @mipl.production(NT.VARDECLST, ())
-def p_variable_declaration_list_epsilon(symbol_table: SymbolTable):
-    yield
-    yield
+def p_variable_declaration_list_epsilon(*args):
+    yield 0
 
 @mipl.production(NT.VARDEC, (
     NT.IDENT,
@@ -106,7 +155,7 @@ def p_variable_declaration_list_epsilon(symbol_table: SymbolTable):
     T.COLON,
     NT.TYPE
 ))
-def p_variable_declaration(symbol_table: SymbolTable):
+def p_variable_declaration(*args):
     prod = yield
     # print("var_ident")
     var_idents = [prod]
@@ -114,13 +163,13 @@ def p_variable_declaration(symbol_table: SymbolTable):
     prod = yield
     var_idents += [] if prod is None else prod
 
-    prod = yield
-    line_number = prod.line_number
+    tok = yield
+    line_number = tok.line_number
 
-    prod = yield
+    var_type = yield
 
     for ident in var_idents:
-        sym = Symbol(ident, SymbolCat.VARIABLE, **prod)
+        sym = Symbol(ident, SymbolCat.VARIABLE, **var_type)
         print_symbol_add(sym)
 
         if ident in symbol_table.this_scope():
@@ -128,10 +177,11 @@ def p_variable_declaration(symbol_table: SymbolTable):
 
         symbol_table.new_id(sym)
 
-    yield
+    # yield number of words this variable declaration needs
+    yield var_type["words"] * len(var_idents)
 
 @mipl.production(NT.IDENT, (T.IDENT,))
-def p_identifier(symbol_table: SymbolTable):
+def p_identifier(*args):
     prod = yield
     yield prod.lexeme
 
@@ -140,7 +190,7 @@ def p_identifier(symbol_table: SymbolTable):
     NT.IDENT,
     NT.IDENTLST
 ))
-def p_identifier_list(symbol_table: SymbolTable):
+def p_identifier_list(*args):
     prod = yield
     prod = yield
     ident = prod
@@ -149,17 +199,20 @@ def p_identifier_list(symbol_table: SymbolTable):
     yield [ident, *idents]
 
 @mipl.production(NT.IDENTLST, ())
-def p_identifier_list_epsilon(symbol_table: SymbolTable):
+def p_identifier_list_epsilon(*args):
     yield []
-    yield 
 
 @mipl.production(NT.TYPE, (NT.SIMPLE,))
-def p_type_simple(symbol_table: SymbolTable):
-    prod = yield
-    yield {"type": prod}
+def p_type_simple(*args):
+    simple_type = yield
+
+    yield {
+        "type": simple_type,
+        "words": 1
+    }
 
 @mipl.production(NT.TYPE, (NT.ARRAY,))
-def p_type_array(symbol_table: SymbolTable):
+def p_type_array(*args):
     prod = yield
     a = {"type": SymbolType.ARRAY}
     yield {**a, **prod}
@@ -172,19 +225,22 @@ def p_type_array(symbol_table: SymbolTable):
     T.OF,
     NT.SIMPLE
 ))
-def p_array(symbol_table: SymbolTable):
+def p_array(*args):
     prod = yield
     prod = yield
-    prod = yield
-    bounds = prod
+    bounds = yield
     prod = yield
     prod = yield
     prod = yield
     base_type = prod
-    yield {"bounds": bounds, "base_type": base_type}
+
+    yield {
+        **bounds,
+        "base_type": base_type,
+    }
 
 @mipl.production(NT.IDX, (T.INTCONST,))
-def p_index(symbol_table: SymbolTable):
+def p_index(*args):
     prod = yield
     yield int(prod.lexeme)
 
@@ -193,7 +249,7 @@ def p_index(symbol_table: SymbolTable):
     T.DOTDOT,
     NT.IDX
 ))
-def p_index_range(symbol_table: SymbolTable):
+def p_index_range(*args):
     left_bound = yield
     tok = yield
     right_bound = yield
@@ -203,20 +259,26 @@ def p_index_range(symbol_table: SymbolTable):
     if left_bound > right_bound:
         raise MiplSemanticError(f"Line {line_number}: Start index must be less than or equal to end index of array")
 
-    yield left_bound, right_bound
+    bounds = (left_bound, right_bound)
+
+
+    yield {
+        "bounds": bounds,
+        "words": right_bound - left_bound + 1
+    }
 
 @mipl.production(NT.SIMPLE, (T.INT,))
-def p_simple_int(symbol_table: SymbolTable):
+def p_simple_int(*args):
     prod = yield
     yield SymbolType.INT
 
 @mipl.production(NT.SIMPLE, (T.CHAR,))
-def p_simple_int(symbol_table: SymbolTable):
+def p_simple_int(*args):
     prod = yield
     yield SymbolType.CHAR
 
 @mipl.production(NT.SIMPLE, (T.BOOL,))
-def p_simple_int(symbol_table: SymbolTable):
+def p_simple_int(*args):
     prod = yield
     yield SymbolType.BOOL
 
@@ -225,14 +287,16 @@ def p_simple_int(symbol_table: SymbolTable):
     T.SCOLON,
     NT.PROCDECPART
 ))
-def p_procedure_part(symbol_table: SymbolTable):
+def p_procedure_part(*args):
+    
     prod = yield
     prod = yield
     prod = yield
+
     yield
 
 @mipl.production(NT.PROCDECPART, ())
-def p_procedure_part_epsilon(symbol_table: SymbolTable):
+def p_procedure_part_epsilon(*args):
     yield
     yield
 
@@ -240,10 +304,12 @@ def p_procedure_part_epsilon(symbol_table: SymbolTable):
     NT.PROCHDR,
     NT.BLOCK
 ))
-def p_procedure(symbol_table: SymbolTable):
-    prod = yield
+def p_procedure(*args):
+    sym = yield
+
     symbol_table.scope_enter()
-    prod = yield
+
+    prod = yield sym
     yield
 
 @mipl.production(NT.PROCHDR, (
@@ -251,7 +317,7 @@ def p_procedure(symbol_table: SymbolTable):
     T.IDENT,
     T.SCOLON
 ))
-def p_procedure_header(symbol_table: SymbolTable):
+def p_procedure_header(*args):
     prod = yield
     prod = yield
 
@@ -259,6 +325,8 @@ def p_procedure_header(symbol_table: SymbolTable):
     line_number = prod.line_number
 
     sym = Symbol(proc_ident, SymbolCat.PROCEDURE, parameters=[])
+    sym.linkage["nesting_level"] = symbol_table.nesting_level()
+    sym.linkage["label"] = oal.label_id()
     print_symbol_add(sym)
 
     if proc_ident in symbol_table.this_scope():
@@ -267,11 +335,29 @@ def p_procedure_header(symbol_table: SymbolTable):
     symbol_table.new_id(sym)
 
     prod = yield
-    yield
+    yield sym
 
 @mipl.production(NT.STMTPART, (NT.COMPOUND,))
-def p_statement_part(symbol_table: SymbolTable):
+def p_statement_part(*args):
+
+    sym = args[0]
+
+    label = sym.linkage.pop("label", l_entry)
+    level = sym.linkage.pop("nesting_level", 0)
+    frame_size = sym.linkage.pop("words", DISPLAY)
+
+
+    if label != l_entry:
+        oal.add_instrx(OpCode.SAVE, (level, 0), label=label)
+        oal.add_instrx(OpCode.ADD_STACK_PTR, (frame_size))
+        oal.add_comment("Beginning of block's N_STMTPART")
+
     prod = yield
+
+    if label != l_entry:
+        oal.add_instrx(OpCode.ADD_STACK_PTR, (-1 * frame_size))
+        oal.add_instrx(OpCode.JUMP_INSTR, ())
+
     yield
 
 @mipl.production(NT.COMPOUND, (
@@ -280,7 +366,7 @@ def p_statement_part(symbol_table: SymbolTable):
     NT.STMTLST,
     T.END
 ))
-def p_compound(symbol_table: SymbolTable):
+def p_compound(*args):
     prod = yield
     prod = yield
     prod = yield
@@ -292,19 +378,19 @@ def p_compound(symbol_table: SymbolTable):
     NT.STMT,
     NT.STMTLST
 ))
-def p_statement_list(symbol_table: SymbolTable):
+def p_statement_list(*args):
     prod = yield
     prod = yield
     prod = yield
     yield
 
 @mipl.production(NT.STMTLST, ())
-def p_statement_list_epsilon(symbol_table: SymbolTable):
+def p_statement_list_epsilon(*args):
     yield
     yield
 
 @mipl.hint(NT.STMT)
-def h_ident(possible, token, symbol_table):
+def h_ident(possible, token):
     ident = token.lexeme
 
     if ident not in symbol_table:
@@ -319,37 +405,37 @@ def h_ident(possible, token, symbol_table):
         return possible[0]
 
 @mipl.production(NT.STMT, (NT.ASSIGN,))
-def p_statement_assign(symbol_table: SymbolTable):
+def p_statement_assign(*args):
     prod = yield
     yield
 
 @mipl.production(NT.STMT, (NT.PROCSTMT,))
-def p_statement_procedure(symbol_table: SymbolTable):
+def p_statement_procedure(*args):
     prod = yield
     yield
 
 @mipl.production(NT.STMT, (NT.READ,))
-def p_statement_read(symbol_table: SymbolTable):
+def p_statement_read(*args):
     prod = yield
     yield
 
 @mipl.production(NT.STMT, (NT.WRITE,))
-def p_statement_write(symbol_table: SymbolTable):
+def p_statement_write(*args):
     prod = yield
     yield
 
 @mipl.production(NT.STMT, (NT.CONDITION,))
-def p_statement_condition(symbol_table: SymbolTable):
+def p_statement_condition(*args):
     prod = yield
     yield
 
 @mipl.production(NT.STMT, (NT.WHILE,))
-def p_statement_while(symbol_table: SymbolTable):
+def p_statement_while(*args):
     prod = yield
     yield
 
 @mipl.production(NT.STMT, (NT.COMPOUND,))
-def p_statement_compound(symbol_table: SymbolTable):
+def p_statement_compound(*args):
     prod = yield
     yield
 
@@ -358,7 +444,7 @@ def p_statement_compound(symbol_table: SymbolTable):
     T.ASSIGN,
     NT.EXPR
 ))
-def p_assign(symbol_table: SymbolTable):
+def p_assign(*args):
     var_type = yield
     tok = yield
     line_number = tok.line_number
@@ -376,12 +462,12 @@ def p_assign(symbol_table: SymbolTable):
     yield
 
 @mipl.production(NT.PROCSTMT, (NT.PROCIDENT,))
-def p_procedure_statement(symbol_table: SymbolTable):
+def p_procedure_statement(*args):
     prod = yield
     yield
 
 @mipl.production(NT.PROCIDENT, (T.IDENT,))
-def p_procedure_identifier(symbol_table: SymbolTable):
+def p_procedure_identifier(*args):
     prod = yield
     yield
 
@@ -392,7 +478,7 @@ def p_procedure_identifier(symbol_table: SymbolTable):
     NT.INPUTLST,
     T.RPAREN
 ))
-def p_read(symbol_table: SymbolTable):
+def p_read(*args):
     prod = yield
     tok = yield
     line_number = tok.line_number
@@ -411,7 +497,7 @@ def p_read(symbol_table: SymbolTable):
     NT.INPUTVAR,
     NT.INPUTLST
 ))
-def p_input_list(symbol_table: SymbolTable):
+def p_input_list(*args):
     tok = yield
     line_number = tok.line_number
     var_type = yield
@@ -423,11 +509,11 @@ def p_input_list(symbol_table: SymbolTable):
     yield
 
 @mipl.production(NT.INPUTLST, ())
-def p_input_lst_epsilon(symbol_table: SymbolTable):
+def p_input_lst_epsilon(*args):
     yield
 
 @mipl.production(NT.INPUTVAR, (NT.VARIABLE,))
-def p_input_variable(symbol_table: SymbolTable):
+def p_input_variable(*args):
     var_type = yield
     yield var_type
 
@@ -438,7 +524,7 @@ def p_input_variable(symbol_table: SymbolTable):
     NT.OUTPUTLST,
     T.RPAREN
 ))
-def p_write(symbol_table: SymbolTable):
+def p_write(*args):
     prod = yield
     tok = yield
     line_number = tok.line_number
@@ -456,7 +542,7 @@ def p_write(symbol_table: SymbolTable):
     NT.OUTPUT,
     NT.OUTPUTLST
 ))
-def p_output_list(symbol_table: SymbolTable):
+def p_output_list(*args):
     tok = yield
     line_number = tok.line_number
 
@@ -469,11 +555,11 @@ def p_output_list(symbol_table: SymbolTable):
     yield
 
 @mipl.production(NT.OUTPUTLST, ())
-def p_output_list_epsilon(symbol_table: SymbolTable):
+def p_output_list_epsilon(*args):
     yield
 
 @mipl.production(NT.OUTPUT, (NT.EXPR,))
-def p_output(symbol_table: SymbolTable):
+def p_output(*args):
     expr_type = yield
     yield expr_type
 
@@ -484,7 +570,7 @@ def p_output(symbol_table: SymbolTable):
     NT.STMT,
     NT.ELSEPART
 ))
-def p_condition(symbol_table: SymbolTable):
+def p_condition(*args):
     tok = yield
     line_number = tok.line_number
 
@@ -502,13 +588,13 @@ def p_condition(symbol_table: SymbolTable):
     T.ELSE,
     NT.STMT
 ))
-def p_elsepart(symbol_table: SymbolTable):
+def p_elsepart(*args):
     prod = yield
     prod = yield
     yield
 
 @mipl.production(NT.ELSEPART, ())
-def p_elsepart_epsilon(symbol_table: SymbolTable):
+def p_elsepart_epsilon(*args):
     yield
     yield
 
@@ -518,7 +604,7 @@ def p_elsepart_epsilon(symbol_table: SymbolTable):
     T.DO,
     NT.STMT
 ))
-def p_while(symbol_table: SymbolTable):
+def p_while(*args):
     tok = yield
 
     line_number = tok.line_number
@@ -536,7 +622,7 @@ def p_while(symbol_table: SymbolTable):
     NT.SIMPLEEXPR,
     NT.OPEXPR
 ))
-def p_expr(symbol_table: SymbolTable):
+def p_expr(*args):
     lhs_type = yield
     rhs_type, line_number = yield
 
@@ -553,20 +639,20 @@ def p_expr(symbol_table: SymbolTable):
     NT.RELOP,
     NT.SIMPLEEXPR
 ))
-def p_opexpr(symbol_table: SymbolTable):
+def p_opexpr(*args):
     op, line_number = yield
     expr_type = yield
     yield expr_type, line_number
 
 @mipl.production(NT.OPEXPR, ())
-def p_opexpr_epsilon(symbol_table: SymbolTable):
+def p_opexpr_epsilon(*args):
     yield SymbolType.INVALID, -1
 
 @mipl.production(NT.SIMPLEEXPR, (
     NT.TERM,
     NT.ADDOPLST
 ))
-def p_simpleexpr(symbol_table: SymbolTable):
+def p_simpleexpr(*args):
     term_type = yield
     op_list = yield
     yield term_type
@@ -576,7 +662,7 @@ def p_simpleexpr(symbol_table: SymbolTable):
     NT.TERM,
     NT.ADDOPLST
 ))
-def p_addition_op_list(symbol_table: SymbolTable):
+def p_addition_op_list(*args):
     op, line_number = yield
     term_type = yield
     op_list = yield
@@ -589,14 +675,14 @@ def p_addition_op_list(symbol_table: SymbolTable):
     yield SymbolType.INT if is_mathexpr else SymbolType.BOOL
 
 @mipl.production(NT.ADDOPLST, ())
-def p_addition_op_list_epsilon(symbol_table: SymbolTable):
+def p_addition_op_list_epsilon(*args):
     yield
 
 @mipl.production(NT.TERM, (
     NT.FACTOR,
     NT.MULTOPLST
 ))
-def p_term(symbol_table: SymbolTable):
+def p_term(*args):
     factor_type = yield
     op_list = yield
     yield factor_type
@@ -606,7 +692,7 @@ def p_term(symbol_table: SymbolTable):
     NT.FACTOR,
     NT.MULTOPLST
 ))
-def p_multiplication_op_list(symbol_table: SymbolTable):
+def p_multiplication_op_list(*args):
     op, line_number = yield
     factor_type = yield
     op_list = yield
@@ -619,14 +705,14 @@ def p_multiplication_op_list(symbol_table: SymbolTable):
     yield SymbolType.INT if is_math_expr else SymbolType.BOOL
 
 @mipl.production(NT.MULTOPLST, ())
-def p_multiplication_op_list_epsilon(symbol_table: SymbolTable):
+def p_multiplication_op_list_epsilon(*args):
     yield
 
 @mipl.production(NT.FACTOR, (
     NT.SIGN,
     NT.VARIABLE
 ))
-def p_factor_variable(symbol_table: SymbolTable):
+def p_factor_variable(*args):
     sign_produced, line_number = yield
     var_type = yield
 
@@ -638,7 +724,7 @@ def p_factor_variable(symbol_table: SymbolTable):
 @mipl.production(NT.FACTOR, (
     NT.CONST,
 ))
-def p_factor_const(symbol_table: SymbolTable):
+def p_factor_const(*args):
     const_type = yield
     yield const_type
 
@@ -647,7 +733,7 @@ def p_factor_const(symbol_table: SymbolTable):
     NT.EXPR,
     T.RPAREN
 ))
-def p_factor_expr(symbol_table: SymbolTable):
+def p_factor_expr(*args):
     prod = yield
     expr_type = yield
     prod = yield
@@ -657,7 +743,7 @@ def p_factor_expr(symbol_table: SymbolTable):
     T.NOT,
     NT.FACTOR
 ))
-def p_factor_not(symbol_table: SymbolTable):
+def p_factor_not(*args):
     tok = yield
     line_number = tok.line_number
 
@@ -669,76 +755,76 @@ def p_factor_not(symbol_table: SymbolTable):
     yield SymbolType.BOOL
 
 @mipl.production(NT.SIGN, (T.PLUS,))
-def p_sign_plus(symbol_table: SymbolTable):
+def p_sign_plus(*args):
     tok = yield
     yield True, tok.line_number
 
 @mipl.production(NT.SIGN, (T.MINUS,))
-def p_sign_minus(symbol_table: SymbolTable):
+def p_sign_minus(*args):
     tok = yield
     yield True, tok.line_number
 
 @mipl.production(NT.SIGN, ())
-def p_sign_epsilon(symbol_table: SymbolTable):
+def p_sign_epsilon(*args):
     yield False, None
 
 @mipl.production(NT.ADDOP, (T.PLUS,))
-def p_addition_op_plus(symbol_table: SymbolTable):
+def p_addition_op_plus(*args):
     tok = yield
     yield T.PLUS, tok.line_number
 
 @mipl.production(NT.ADDOP, (T.MINUS,))
-def p_addition_op_minus(symbol_table: SymbolTable):
+def p_addition_op_minus(*args):
     tok = yield
     yield T.MINUS, tok.line_number
 
 @mipl.production(NT.ADDOP, (T.OR,))
-def p_addition_op_or(symbol_table: SymbolTable):
+def p_addition_op_or(*args):
     tok = yield
     yield T.OR, tok.line_number
 
 @mipl.production(NT.MULTOP, (T.MULT,))
-def p_multiplication_op_mult(symbol_table: SymbolTable):
+def p_multiplication_op_mult(*args):
     tok = yield
     yield T.MULT, tok.line_number
 
 @mipl.production(NT.MULTOP, (T.DIV,))
-def p_multiplication_op_div(symbol_table: SymbolTable):
+def p_multiplication_op_div(*args):
     tok = yield
     yield T.DIV, tok.line_number
 
 @mipl.production(NT.MULTOP, (T.AND,))
-def p_multiplication_op_and(symbol_table: SymbolTable):
+def p_multiplication_op_and(*args):
     tok = yield
     yield T.AND, tok.line_number
 
 @mipl.production(NT.RELOP, (T.LT,))
-def p_relative_op_less(symbol_table: SymbolTable):
+def p_relative_op_less(*args):
     tok = yield
     yield T.LT, tok.line_number
 
 @mipl.production(NT.RELOP, (T.LE,))
-def p_relative_op_lesseq(symbol_table: SymbolTable):
+def p_relative_op_lesseq(*args):
     tok = yield
     yield T.LE, tok.line_number
 
 @mipl.production(NT.RELOP, (T.NE,))
-def p_relative_op_noteq(symbol_table: SymbolTable):
+def p_relative_op_noteq(*args):
     tok = yield
     yield T.NE, tok.line_number
 
 @mipl.production(NT.RELOP, (T.EQ,))
-def p_relative_op_eq(symbol_table: SymbolTable):
+def p_relative_op_eq(*args):
     tok = yield
     yield T.EQ, tok.line_number
 
 @mipl.production(NT.RELOP, (T.GT,))
-def p_relative_op_greater(symbol_table: SymbolTable):
+def p_relative_op_greater(*args):
     tok = yield
     yield T.GT, tok.line_number
 
 @mipl.production(NT.RELOP, (T.GE,))
-def p_relative_op_greatereq(symbol_table: SymbolTable):
+def p_relative_op_greatereq(*args):
     tok = yield
     yield T.GE, tok.line_number
 
@@ -746,7 +832,7 @@ def p_relative_op_greatereq(symbol_table: SymbolTable):
     T.IDENT,
     NT.IDXVAR
 ))
-def p_variable(symbol_table: SymbolTable):
+def p_variable(*args):
     tok = yield
 
     ident = tok.lexeme
@@ -771,7 +857,7 @@ def p_variable(symbol_table: SymbolTable):
     NT.EXPR,
     T.RBRACK
 ))
-def p_index_variable(symbol_table: SymbolTable):
+def p_index_variable(*args):
     token = yield
     line_number = token.line_number
 
@@ -784,30 +870,30 @@ def p_index_variable(symbol_table: SymbolTable):
     yield True
 
 @mipl.production(NT.IDXVAR, ())
-def p_index_variable_epsilon(symbol_table: SymbolTable):
+def p_index_variable_epsilon(*args):
     yield False
 
 @mipl.production(NT.CONST, (T.INTCONST,))
-def p_constant_int(symbol_table: SymbolTable):
+def p_constant_int(*args):
     prod = yield
     yield SymbolType.INT
 
 @mipl.production(NT.CONST, (T.CHARCONST,))
-def p_constant_char(symbol_table: SymbolTable):
+def p_constant_char(*args):
     prod = yield
     yield SymbolType.CHAR
 
 @mipl.production(NT.CONST, (NT.BOOLCONST,))
-def p_constant_bool(symbol_table: SymbolTable):
+def p_constant_bool(*args):
     prod = yield
     yield SymbolType.BOOL
 
 @mipl.production(NT.BOOLCONST, (T.TRUE,))
-def p_constant_true(symbol_table: SymbolTable):
+def p_constant_true(*args):
     prod = yield
     yield
 
 @mipl.production(NT.BOOLCONST, (T.FALSE,))
-def p_constant_false(symbol_table: SymbolTable):
+def p_constant_false(*args):
     prod = yield
     yield

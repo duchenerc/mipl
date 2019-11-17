@@ -37,9 +37,6 @@ class Grammar():
         # this function resolves that ambiguity given the parser's current state
         self.hints = dict()
 
-        # keep a symbol table
-        self.symbol_table = SymbolTable()
-
     
     def production(self, nonterminal, production):
         """
@@ -77,7 +74,7 @@ class Grammar():
 
         return decorator_hint
     
-    def parse(self, nonterminal, token, lexer):
+    def parse(self, nonterminal, prod, token, lexer):
         rules = self.rules[nonterminal]
 
         # check for hints
@@ -89,10 +86,10 @@ class Grammar():
             if len(possible) > 0:
                 # call the hint function that can resolve the ambiguity
                 # give it the list of possible productions and some context
-                production = self.hints[nonterminal](possible, token, self.symbol_table)
+                production = self.hints[nonterminal](possible, token)
 
                 # use that production
-                return self.produce(nonterminal, production, token, lexer)
+                return self.produce(nonterminal, production, prod, token, lexer)
             
             else:
                 raise MiplSyntaxError(f"Line: {token.line_number}: syntax error")
@@ -103,13 +100,13 @@ class Grammar():
                 # if this production is epsilon, take it immediately
                 # if this terminal can start this production, take it immediately
                 if len(production) == 0 or token.terminal in self.first(production):
-                    return self.produce(nonterminal, production, token, lexer)
+                    return self.produce(nonterminal, production, prod, token, lexer)
         
         raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
 
     
-    def produce(self, nonterminal, production, token, lexer):
-        producer = self.production_funcs[(nonterminal, production)](self.symbol_table)
+    def produce(self, nonterminal, production, prod, token, lexer):
+        producer = self.production_funcs[(nonterminal, production)](prod)
 
         # print_nonterminal(nonterminal, production)
 
@@ -118,7 +115,7 @@ class Grammar():
         else:
             next(producer)
 
-        prod = None
+        # prod = prod if prod is not None else None
 
         for term in production:
             # if this is a terminal, process it
@@ -132,7 +129,7 @@ class Grammar():
             # if this is a nonterminal, recursive call
             else:
                 try:
-                    token, prod = self.parse(term, token, lexer)
+                    token, prod = self.parse(term, prod, token, lexer)
                     prod = producer.send(prod)
                 except StopIteration:
                     raise MiplSyntaxError(f"Line {token.line_number}: syntax error")
