@@ -26,24 +26,27 @@ for i in $inputs; do
 
     filename=$(basename $i) # strip path
     testname="${filename%.*}" # strip extension
+    # oalname="$testname"
 
     # echo "$EXEC"
     # echo "$INPUT/$filename"
     # echo "$OUTPUT/$filename"
 
     # actually run file
-    ${EXEC} "$INPUT/$filename" > "$OUTPUT/$filename.out"
+    ${EXEC} "$INPUT/$filename" "$OUTPUT/$testname.oal" > "$OUTPUT/$filename.out"
 
     # run diff
     diff -yibB "$OUTPUT/$filename.out" "$EXPECTED/$filename.out" > "$REPORTS/$filename"
+    diff -yibB "$OUTPUT/$testname.oal" "$EXPECTED/$testname.oal" > "$REPORTS/$testname.oal"
 
     # count number of lines in diff
-    lines=`diff -ibB $OUTPUT/$filename.out $EXPECTED/$filename.out | wc -l`
+    lines=`diff -ibB $OUTPUT/$testname.oal $EXPECTED/$testname.oal | wc -l`
 
     if [ "$lines" -gt "0" ]; then
         fails=$[ $fails + 1 ]
         echo "check: ${red}[fail]${reset} $testname ($lines lines)"
-        head "$REPORTS/$filename"
+        head "$REPORTS/$testname.oal"
+        head "$OUTPUT/$filename.out"
     else
         passes=$[ $passes + 1 ]
         echo "check: ${green}[pass]${reset} $testname"

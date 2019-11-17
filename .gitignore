@@ -1,7 +1,10 @@
 expected/*.txt.out
+expected/*.oal
 input/*.txt
 reports/*.txt
+reports/*.oal
 output/*.txt.out
+output/*.oal
 
 __pycache__
 
