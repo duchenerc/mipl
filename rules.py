@@ -65,6 +65,7 @@ def p_program(*args):
     symbol_table.scope_enter()
 
     sym = Symbol(prog_ident, SymbolCat.PROGRAM)
+    sym.linkage["label"] = l_entry
     print_symbol_add(sym)
 
     if prog_ident in symbol_table.this_scope():
@@ -91,6 +92,7 @@ def p_program(*args):
     NT.STMTPART,
 ))
 def p_block(*args):
+    global symbol_table
     sym = args[0]
     # get number of words from variable declarations
     num_words = yield
@@ -342,20 +344,26 @@ def p_statement_part(*args):
 
     sym = args[0]
 
-    label = sym.linkage.pop("label", l_entry)
-    level = sym.linkage.pop("nesting_level", 0)
-    frame_size = sym.linkage.pop("words", DISPLAY)
+    label = sym.linkage.get("label", l_entry)
+    level = sym.linkage.get("nesting_level", 0)
+    frame_size = sym.linkage.get("words", DISPLAY)
 
 
     if label != l_entry:
         oal.add_instrx(OpCode.SAVE, (level, 0), label=label)
-        oal.add_instrx(OpCode.ADD_STACK_PTR, (frame_size))
-        oal.add_comment("Beginning of block's N_STMTPART")
+        if frame_size > 0:
+            oal.add_instrx(OpCode.ADD_STACK_PTR, (frame_size))
+    
+    else:
+        oal.add_instrx(OpCode.NONE, label=l_entry)
+
+    oal.add_comment("Beginning of block's N_STMTPART")
 
     prod = yield
 
     if label != l_entry:
-        oal.add_instrx(OpCode.ADD_STACK_PTR, (-1 * frame_size))
+        if frame_size > 0:
+            oal.add_instrx(OpCode.ADD_STACK_PTR, (-1 * frame_size))
         oal.add_instrx(OpCode.JUMP_INSTR, ())
 
     yield
@@ -463,13 +471,36 @@ def p_assign(*args):
 
 @mipl.production(NT.PROCSTMT, (NT.PROCIDENT,))
 def p_procedure_statement(*args):
-    prod = yield
+    global symbol_table
+    ident = yield
+
+    caller_level = symbol_table.nesting_level() - 1
+    
+    sym = symbol_table[ident]
+
+    try:
+        callee_level = sym.linkage["nesting_level"]
+    except KeyError as e:
+        print(e)
+
+    callee_label = sym.linkage["label"]
+
+    if caller_level >= callee_level:
+        for i in reversed(range(callee_level, caller_level+1)):
+            oal.add_instrx(OpCode.PUSH, (i, 0))
+
+    oal.add_instrx(OpCode.JUMP_STACK, oal.label(callee_label))
+
+    if caller_level >= callee_level:
+        for i in range(callee_level, caller_level+1):
+            oal.add_instrx(OpCode.POP, (i, 0))
+
     yield
 
 @mipl.production(NT.PROCIDENT, (T.IDENT,))
 def p_procedure_identifier(*args):
-    prod = yield
-    yield
+    tok = yield
+    yield tok.lexeme
 
 @mipl.production(NT.READ, (
     T.READ,
