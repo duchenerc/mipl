@@ -3,6 +3,8 @@ from elements import Terminal as T, Nonterminal as NT
 from symbols import *
 from oal import OalWriter, OalOpCode as OpCode
 
+from pprint import pprint
+
 DISPLAY = 20
 
 oal = OalWriter()
@@ -94,8 +96,11 @@ def p_program(*args):
 def p_block(*args):
     global symbol_table
     sym = args[0]
+
+    offset_start = DISPLAY if sym.sym_cat == SymbolCat.PROGRAM else 0
+
     # get number of words from variable declarations
-    num_words = yield
+    num_words = yield offset_start
 
     if sym.sym_cat == SymbolCat.PROGRAM:
         oal.add_instrx(OpCode.BSS, (num_words + DISPLAY), label=l_globals)
@@ -124,12 +129,14 @@ def p_block(*args):
     NT.VARDECLST
 ))
 def p_variable_declaration_part(*args):
+    offset = args[0]
+
     prod = yield
-    words_head = yield
+    words_head = yield offset
     prod = yield
     
     # the rest
-    words_tail = yield
+    words_tail = yield offset + words_head
     yield words_head + words_tail
 
 @mipl.production(NT.VARDECPART, ())
@@ -142,9 +149,12 @@ def p_variable_declaration_part_epsilon(*args):
     NT.VARDECLST
 ))
 def p_variable_declaration_list(*args):
-    words_head = yield
+    offset = args[0]
+
+    words_head = yield offset
     prod = yield
-    words_tail = yield
+    words_tail = yield offset + words_head
+
     yield words_head + words_tail
 
 @mipl.production(NT.VARDECLST, ())
@@ -158,26 +168,39 @@ def p_variable_declaration_list_epsilon(*args):
     NT.TYPE
 ))
 def p_variable_declaration(*args):
+
+    offset = args[0]
+
+    # get the first identifier
     prod = yield
-    # print("var_ident")
     var_idents = [prod]
 
+    # get the rest of the identifiers and merge all identifiers
     prod = yield
     var_idents += [] if prod is None else prod
 
     tok = yield
     line_number = tok.line_number
 
+    # get the delcared type
     var_type = yield
+
+    # get the nesting level for one down
+    # if this is global, our offset starts at 20
+    nesting_level = symbol_table.nesting_level()
 
     for ident in var_idents:
         sym = Symbol(ident, SymbolCat.VARIABLE, **var_type)
+        sym.linkage["nesting_level"] = nesting_level
+        sym.linkage["offset"] = offset
         print_symbol_add(sym)
 
         if ident in symbol_table.this_scope():
             raise MiplMultiplyDefinedIdentifierError(f"Line {line_number}: Multiply defined identifier")
 
         symbol_table.new_id(sym)
+
+        offset += var_type["words"]
 
     # yield number of words this variable declaration needs
     yield var_type["words"] * len(var_idents)
@@ -327,7 +350,7 @@ def p_procedure_header(*args):
     line_number = prod.line_number
 
     sym = Symbol(proc_ident, SymbolCat.PROCEDURE, parameters=[])
-    sym.linkage["nesting_level"] = symbol_table.nesting_level()
+    sym.linkage["nesting_level"] = symbol_table.nesting_level() + 1
     sym.linkage["label"] = oal.label_id()
     print_symbol_add(sym)
 
@@ -466,6 +489,11 @@ def p_assign(*args):
         else:
 
             raise MiplSemanticError(f"Line {line_number}: Expression must be of same type as variable")
+    
+    # if var_type = SymbolType.ARRAY:
+    #     oal.add_instrx
+
+    oal.add_instrx(OpCode.STORE)
 
     yield
 
@@ -474,7 +502,7 @@ def p_procedure_statement(*args):
     global symbol_table
     ident = yield
 
-    caller_level = symbol_table.nesting_level() - 1
+    caller_level = symbol_table.nesting_level()
     
     sym = symbol_table[ident]
 
@@ -744,11 +772,14 @@ def p_multiplication_op_list_epsilon(*args):
     NT.VARIABLE
 ))
 def p_factor_variable(*args):
-    sign_produced, line_number = yield
+    sign, line_number = yield
     var_type = yield
 
-    if sign_produced and var_type != SymbolType.INT:
+    if sign is not None and var_type != SymbolType.INT:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
+
+    if sign == T.MINUS:
+        oal.add_instrx(OpCode.NEG)
 
     yield var_type
 
@@ -788,16 +819,16 @@ def p_factor_not(*args):
 @mipl.production(NT.SIGN, (T.PLUS,))
 def p_sign_plus(*args):
     tok = yield
-    yield True, tok.line_number
+    yield T.PLUS, tok.line_number
 
 @mipl.production(NT.SIGN, (T.MINUS,))
 def p_sign_minus(*args):
     tok = yield
-    yield True, tok.line_number
+    yield T.MINUS, tok.line_number
 
 @mipl.production(NT.SIGN, ())
 def p_sign_epsilon(*args):
-    yield False, None
+    yield None, -1
 
 @mipl.production(NT.ADDOP, (T.PLUS,))
 def p_addition_op_plus(*args):
@@ -876,10 +907,23 @@ def p_variable(*args):
     if sym.sym_cat == SymbolCat.PROCEDURE:
         raise MiplSemanticError(f"Line {line_number}: Procedure/variable mismatch")
 
+    offset = sym.linkage["offset"]
+    nesting_level = sym.linkage["nesting_level"]
+
+    if sym.var_type == SymbolType.ARRAY:
+        start_index = sym.array_bounds[0]
+        offset -= start_index
+    
+    oal.add_instrx(OpCode.LOAD_ADDR, (offset, nesting_level))
+
     indexed = yield
 
     if indexed and sym.var_type != SymbolType.ARRAY:
         raise MiplSemanticError(f"Line {line_number}: Indexed variable must be of array type")
+    
+    if indexed:
+        start_index = sym.array_bounds[0]
+        oal.add_instrx(OpCode.ADD)
 
     yield sym.var_type if not indexed else sym.array_base_type
 
@@ -907,11 +951,14 @@ def p_index_variable_epsilon(*args):
 @mipl.production(NT.CONST, (T.INTCONST,))
 def p_constant_int(*args):
     prod = yield
+    oal.add_instrx(OpCode.LOAD_CONST, int(prod.lexeme))
     yield SymbolType.INT
 
 @mipl.production(NT.CONST, (T.CHARCONST,))
 def p_constant_char(*args):
     prod = yield
+    # the character literal is wrapped by single quotes
+    oal.add_instrx(OpCode.LOAD_CONST, ord(prod.lexeme[1]))
     yield SymbolType.CHAR
 
 @mipl.production(NT.CONST, (NT.BOOLCONST,))
@@ -922,9 +969,11 @@ def p_constant_bool(*args):
 @mipl.production(NT.BOOLCONST, (T.TRUE,))
 def p_constant_true(*args):
     prod = yield
+    oal.add_instrx(OpCode.LOAD_CONST, 1)
     yield
 
 @mipl.production(NT.BOOLCONST, (T.FALSE,))
 def p_constant_false(*args):
     prod = yield
+    oal.add_instrx(OpCode.LOAD_CONST, 0)
     yield

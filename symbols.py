@@ -155,7 +155,9 @@ class SymbolTable():
         return self._symbols[-1].keys()
     
     def nesting_level(self):
-        return len(self._symbols)
+        # global variables are nesting level 0,
+        # which equates to 1 table (the one storing the global tables)
+        return len(self._symbols) - 1
     
     def new_id(self, sym):
         """

@@ -113,7 +113,7 @@ class Grammar():
         if len(production) == 0:
             return token, next(producer)
         else:
-            next(producer)
+            prod = next(producer)
 
         # prod = prod if prod is not None else None
 
