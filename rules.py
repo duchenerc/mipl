@@ -7,6 +7,21 @@ from pprint import pprint
 
 DISPLAY = 20
 
+OPS_OP_CODES = {
+    T.PLUS: OpCode.ADD,
+    T.MINUS: OpCode.SUB,
+    T.MULT: OpCode.MULT,
+    T.DIV: OpCode.DIV,
+    T.AND: OpCode.AND,
+    T.OR: OpCode.OR,
+    T.GT: OpCode.GT,
+    T.LT: OpCode.LT,
+    T.GE: OpCode.GE,
+    T.LE: OpCode.LE,
+    T.EQ: OpCode.EQ,
+    T.NE: OpCode.NE
+}
+
 oal = OalWriter()
 l_globals = oal.label_id()
 l_stack = oal.label_id()
@@ -658,6 +673,10 @@ def p_output(*args):
     NT.ELSEPART
 ))
 def p_condition(*args):
+
+    label_else = oal.label_id()
+    label_post = oal.label_id()
+
     tok = yield
     line_number = tok.line_number
 
@@ -665,10 +684,19 @@ def p_condition(*args):
 
     if condition_type != SymbolType.BOOL:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
+    
+    oal.add_instrx(OpCode.JUMP_FALSE, (oal.label(label_else)))
 
     prod = yield
     prod = yield
+
+    oal.add_instrx(OpCode.JUMP, (oal.label(label_post)))
+    oal.add_instrx(OpCode.NONE, label=label_else)
+
     prod = yield
+
+    oal.add_instrx(OpCode.NONE, label=label_post)
+
     yield
 
 @mipl.production(NT.ELSEPART, (
@@ -692,17 +720,28 @@ def p_elsepart_epsilon(*args):
     NT.STMT
 ))
 def p_while(*args):
+
+    label_top = oal.label_id()
+    label_post = oal.label_id()
+
     tok = yield
 
     line_number = tok.line_number
+    oal.add_instrx(OpCode.NONE, label=label_top)
 
     expr_type = yield
 
     if expr_type != SymbolType.BOOL:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
 
+    oal.add_instrx(OpCode.JUMP_FALSE, (oal.label(label_post)))
+
     prod = yield
     prod = yield
+
+    oal.add_instrx(OpCode.JUMP, (oal.label(label_top)))
+    oal.add_instrx(OpCode.NONE, label=label_post)
+
     yield
 
 
@@ -734,6 +773,9 @@ def p_expr(*args):
 def p_opexpr(*args):
     op, line_number = yield
     expr_type = yield
+
+    oal.add_instrx(OPS_OP_CODES[op])
+
     yield expr_type, line_number
 
 @mipl.production(NT.OPEXPR, ())
@@ -763,15 +805,8 @@ def p_addition_op_list(*args):
 
     if is_mathexpr and term_type != SymbolType.INT:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
-
-    if op == T.PLUS:
-        oal.add_instrx(OpCode.ADD)
     
-    elif op == T.MINUS:
-        oal.add_instrx(OpCode.SUB)
-    
-    elif op == T.OR:
-        oal.add_instrx(OpCode.OR)
+    oal.add_instrx(OPS_OP_CODES[op])
 
     yield SymbolType.INT if is_mathexpr else SymbolType.BOOL
 
@@ -802,15 +837,8 @@ def p_multiplication_op_list(*args):
 
     if is_math_expr and factor_type != SymbolType.INT:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
-
-    if op == T.MULT:
-        oal.add_instrx(OpCode.MULT)
     
-    elif op == T.DIV:
-        oal.add_instrx(OpCode.DIV)
-    
-    elif op == T.AND:
-        oal.add_instrx(OpCode.AND)
+    oal.add_instrx(OPS_OP_CODES[op])
 
     yield SymbolType.INT if is_math_expr else SymbolType.BOOL
 
