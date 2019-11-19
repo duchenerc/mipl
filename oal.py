@@ -112,12 +112,25 @@ class OalWriter():
         for i in range(len(self.instrx)):
             op, params = self.instrx[i]
 
+            if op == OalOpCode.COMMENT:
+                fout.write(f"# {str(params[0])}\n")
+                fout.flush()
+                continue
+
             label_id = self.labels[i] if i in self.labels.keys() else -1
             label_str = f"L.{label_id}:\n" if label_id > -1 else ""
 
+            if op in (OalOpCode.NONE,):
+                fout.write(label_str)
+                continue
+
             params_conv = [str(param) for param in params]
             params_str = (" " + ", ".join(params_conv)) if len(params) > 0 else ""
-            fout.write(f"{label_str}  {op.value}{params_str}\n")
+            fout.write(f"{label_str}  {op.value}{params_str}")
+
+            if op not in (OalOpCode.NONE,):
+                fout.write("\n")
+
             fout.flush()
 
 
