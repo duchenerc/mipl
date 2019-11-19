@@ -546,6 +546,14 @@ def p_read(*args):
 
     if var_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Input variable must be of type integer or char")
+    
+    if var_type == SymbolType.INT:
+        oal.add_instrx(OpCode.READ_INT)
+
+    elif var_type == SymbolType.CHAR:
+        oal.add_instrx(OpCode.READ_CHAR)
+    
+    oal.add_instrx(OpCode.STORE)
 
     prod = yield
     prod = yield
@@ -563,6 +571,14 @@ def p_input_list(*args):
 
     if var_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Input variable must be of type integer or type char")
+
+    if var_type == SymbolType.INT:
+        oal.add_instrx(OpCode.READ_INT)
+
+    elif var_type == SymbolType.CHAR:
+        oal.add_instrx(OpCode.READ_CHAR)
+    
+    oal.add_instrx(OpCode.STORE)
 
     prod = yield
     yield
@@ -591,6 +607,12 @@ def p_write(*args):
 
     if output_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Output expression must be of type integer or char")
+    
+    if output_type == SymbolType.INT:
+        oal.add_instrx(OpCode.WRITE_INT)
+        
+    elif output_type == SymbolType.CHAR:
+        oal.add_instrx(OpCode.WRITE_CHAR)
 
     prod = yield
     prod = yield
@@ -609,6 +631,12 @@ def p_output_list(*args):
 
     if output_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Output expression must be of type integer or char")
+
+    if output_type == SymbolType.INT:
+        oal.add_instrx(OpCode.WRITE_INT)
+
+    elif output_type == SymbolType.CHAR:
+        oal.add_instrx(OpCode.WRITE_CHAR)
 
     prod = yield
     yield
@@ -677,6 +705,11 @@ def p_while(*args):
     prod = yield
     yield
 
+
+
+
+
+
 @mipl.production(NT.EXPR, (
     NT.SIMPLEEXPR,
     NT.OPEXPR
@@ -731,6 +764,15 @@ def p_addition_op_list(*args):
     if is_mathexpr and term_type != SymbolType.INT:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
 
+    if op == T.PLUS:
+        oal.add_instrx(OpCode.ADD)
+    
+    elif op == T.MINUS:
+        oal.add_instrx(OpCode.SUB)
+    
+    elif op == T.OR:
+        oal.add_instrx(OpCode.OR)
+
     yield SymbolType.INT if is_mathexpr else SymbolType.BOOL
 
 @mipl.production(NT.ADDOPLST, ())
@@ -761,6 +803,15 @@ def p_multiplication_op_list(*args):
     if is_math_expr and factor_type != SymbolType.INT:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
 
+    if op == T.MULT:
+        oal.add_instrx(OpCode.MULT)
+    
+    elif op == T.DIV:
+        oal.add_instrx(OpCode.DIV)
+    
+    elif op == T.AND:
+        oal.add_instrx(OpCode.AND)
+
     yield SymbolType.INT if is_math_expr else SymbolType.BOOL
 
 @mipl.production(NT.MULTOPLST, ())
@@ -777,6 +828,8 @@ def p_factor_variable(*args):
 
     if sign is not None and var_type != SymbolType.INT:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
+    
+    oal.add_instrx(OpCode.DEREF)
 
     if sign == T.MINUS:
         oal.add_instrx(OpCode.NEG)
@@ -813,6 +866,8 @@ def p_factor_not(*args):
 
     if factor_type != SymbolType.BOOL:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
+
+    oal.add_instrx(OpCode.NOT)
 
     yield SymbolType.BOOL
 
