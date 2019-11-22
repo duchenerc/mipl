@@ -3,10 +3,10 @@ from elements import Terminal as T, Nonterminal as NT
 from symbols import *
 from oal import OalWriter, OalOpCode as OpCode
 
-from pprint import pprint
-
+# The number of words to allow for the display
 DISPLAY = 20
 
+# Maps token types to OAL op codes
 OPS_OP_CODES = {
     T.PLUS: OpCode.ADD,
     T.MINUS: OpCode.SUB,
@@ -22,16 +22,6 @@ OPS_OP_CODES = {
     T.NE: OpCode.NE
 }
 
-oal = OalWriter()
-l_globals = oal.label_id()
-l_stack = oal.label_id()
-l_code = oal.label_id()
-l_entry = oal.label_id()
-
-mipl = Grammar(NT, T)
-
-symbol_table = SymbolTable()
-
 class MiplSemanticError(Exception):
     pass
 
@@ -46,6 +36,16 @@ def print_symbol_add(sym: Symbol):
         out += f" {b[0]} .. {b[1]} of {bt.value}"
 
     # print("\n" + out)
+
+mipl = Grammar(NT, T)
+
+symbol_table = SymbolTable()
+
+oal = OalWriter()
+l_globals = oal.label_id()
+l_stack = oal.label_id()
+l_code = oal.label_id()
+l_entry = oal.label_id()
 
 @mipl.production(NT.PROGLBL, (T.PROG,))
 def p_program_label(*args):
@@ -110,8 +110,13 @@ def p_program(*args):
 ))
 def p_block(*args):
     global symbol_table
+
+    # get the symbol of the parent
+    # (the program or procedure that owns this block)
     sym = args[0]
 
+    # get the offset for this block
+    # if we're in the root scope, give some room for the display
     offset_start = DISPLAY if sym.sym_cat == SymbolCat.PROGRAM else 0
 
     # get number of words from variable declarations
@@ -127,10 +132,8 @@ def p_block(*args):
 
     prod = yield
 
-    # print("  # Beginning of block's N_STMTPART")
+    # send the parent symbol down to the statements for thie block
     prod = yield sym
-    # print("  # End of block's N_STMTPART")
-
 
     symbol_table.scope_exit()
     yield sym
@@ -144,18 +147,27 @@ def p_block(*args):
     NT.VARDECLST
 ))
 def p_variable_declaration_part(*args):
+    # get the starting offset at which we can store vars
     offset = args[0]
 
     prod = yield
+
+    # send the offset to the vardec
+    # it will declare its vars starting at this offset
+    # the vardec passes back the number of words it occupies
     words_head = yield offset
     prod = yield
     
-    # the rest
+    # offset + words_head -> the starting offset for the next vardec
+    # get back the total number of words used in the tail
     words_tail = yield offset + words_head
+
+    # return the total number of words used
     yield words_head + words_tail
 
 @mipl.production(NT.VARDECPART, ())
 def p_variable_declaration_part_epsilon(*args):
+    # empty, so occupies no words
     yield 0
 
 @mipl.production(NT.VARDECLST, (
@@ -164,16 +176,25 @@ def p_variable_declaration_part_epsilon(*args):
     NT.VARDECLST
 ))
 def p_variable_declaration_list(*args):
+    # get the starting offset at which we can store vars
     offset = args[0]
 
+    # send the offset to the vardec
+    # it will declare its vars starting at this offset
+    # the vardec passes back the number of words it occupies
     words_head = yield offset
     prod = yield
+
+    # offset + words_head -> the starting offset for the next vardec
+    # get back the total number of words used in the tail
     words_tail = yield offset + words_head
 
+    # return the total number of words used
     yield words_head + words_tail
 
 @mipl.production(NT.VARDECLST, ())
 def p_variable_declaration_list_epsilon(*args):
+    # empty, so occupies no words
     yield 0
 
 @mipl.production(NT.VARDEC, (
@@ -183,7 +204,8 @@ def p_variable_declaration_list_epsilon(*args):
     NT.TYPE
 ))
 def p_variable_declaration(*args):
-
+    # get the starting offset
+    # we can declare variables beginning at this offset
     offset = args[0]
 
     # get the first identifier
@@ -198,6 +220,7 @@ def p_variable_declaration(*args):
     line_number = tok.line_number
 
     # get the delcared type
+    # this comes with information about base_type, bounds, and words
     var_type = yield
 
     # get the nesting level for one down
@@ -215,6 +238,7 @@ def p_variable_declaration(*args):
 
         symbol_table.new_id(sym)
 
+        # advance the offset in preparation for the next ident
         offset += var_type["words"]
 
     # yield number of words this variable declaration needs
@@ -232,10 +256,8 @@ def p_identifier(*args):
 ))
 def p_identifier_list(*args):
     prod = yield
-    prod = yield
-    ident = prod
-    prod = yield
-    idents = prod
+    ident = yield
+    idents = yield
     yield [ident, *idents]
 
 @mipl.production(NT.IDENTLST, ())
@@ -246,6 +268,7 @@ def p_identifier_list_epsilon(*args):
 def p_type_simple(*args):
     simple_type = yield
 
+    # give back the type and number of words
     yield {
         "type": simple_type,
         "words": 1
@@ -301,7 +324,6 @@ def p_index_range(*args):
 
     bounds = (left_bound, right_bound)
 
-
     yield {
         "bounds": bounds,
         "words": right_bound - left_bound + 1
@@ -328,11 +350,9 @@ def p_simple_int(*args):
     NT.PROCDECPART
 ))
 def p_procedure_part(*args):
-    
     prod = yield
     prod = yield
     prod = yield
-
     yield
 
 @mipl.production(NT.PROCDECPART, ())
@@ -365,6 +385,7 @@ def p_procedure_header(*args):
     line_number = prod.line_number
 
     sym = Symbol(proc_ident, SymbolCat.PROCEDURE, parameters=[])
+    # this procedure is nested one level underneath the current one
     sym.linkage["nesting_level"] = symbol_table.nesting_level() + 1
     sym.linkage["label"] = oal.label_id()
     print_symbol_add(sym)
@@ -375,6 +396,8 @@ def p_procedure_header(*args):
     symbol_table.new_id(sym)
 
     prod = yield
+
+    # give back the symbol used to create this procedure
     yield sym
 
 @mipl.production(NT.STMTPART, (NT.COMPOUND,))
@@ -386,9 +409,12 @@ def p_statement_part(*args):
     level = sym.linkage.get("nesting_level", 0)
     frame_size = sym.linkage.get("words", DISPLAY)
 
-
+    # if we're executing a procedure,
+    # save the current execution pointer so we can return to it
     if label != l_entry:
         oal.add_instrx(OpCode.SAVE, (level, 0), label=label)
+
+        # if this new procedure declares any varibles, move stack pointer
         if frame_size > 0:
             oal.add_instrx(OpCode.ADD_STACK_PTR, (frame_size))
     
@@ -399,6 +425,7 @@ def p_statement_part(*args):
 
     prod = yield
 
+    # reload execution pointer
     if label != l_entry:
         if frame_size > 0:
             oal.add_instrx(OpCode.ADD_STACK_PTR, (-1 * frame_size))
@@ -432,7 +459,6 @@ def p_statement_list(*args):
 
 @mipl.production(NT.STMTLST, ())
 def p_statement_list_epsilon(*args):
-    yield
     yield
 
 @mipl.hint(NT.STMT)
@@ -504,9 +530,6 @@ def p_assign(*args):
         else:
 
             raise MiplSemanticError(f"Line {line_number}: Expression must be of same type as variable")
-    
-    # if var_type = SymbolType.ARRAY:
-    #     oal.add_instrx
 
     oal.add_instrx(OpCode.STORE)
 
@@ -517,23 +540,24 @@ def p_procedure_statement(*args):
     global symbol_table
     ident = yield
 
+    # get the nesting level of this procedure
     caller_level = symbol_table.nesting_level()
     
+    # get the nesting level of the procedure to be called
     sym = symbol_table[ident]
-
-    try:
-        callee_level = sym.linkage["nesting_level"]
-    except KeyError as e:
-        print(e)
-
+    callee_level = sym.linkage["nesting_level"]
     callee_label = sym.linkage["label"]
 
+    # if the caller's nesting level is at least the callee's nesting level,
+    # then the caller is nested inside the callee
+    # need to unload everything
     if caller_level >= callee_level:
         for i in reversed(range(callee_level, caller_level+1)):
             oal.add_instrx(OpCode.PUSH, (i, 0))
 
     oal.add_instrx(OpCode.JUMP_STACK, oal.label(callee_label))
 
+    # reload everything
     if caller_level >= callee_level:
         for i in range(callee_level, caller_level+1):
             oal.add_instrx(OpCode.POP, (i, 0))
@@ -562,6 +586,7 @@ def p_read(*args):
     if var_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Input variable must be of type integer or char")
     
+    # read in and store
     if var_type == SymbolType.INT:
         oal.add_instrx(OpCode.READ_INT)
 
@@ -587,6 +612,7 @@ def p_input_list(*args):
     if var_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Input variable must be of type integer or type char")
 
+    # read in and store
     if var_type == SymbolType.INT:
         oal.add_instrx(OpCode.READ_INT)
 
@@ -623,6 +649,7 @@ def p_write(*args):
     if output_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Output expression must be of type integer or char")
     
+    # output
     if output_type == SymbolType.INT:
         oal.add_instrx(OpCode.WRITE_INT)
         
@@ -646,7 +673,8 @@ def p_output_list(*args):
 
     if output_type not in (SymbolType.INT, SymbolType.CHAR):
         raise MiplSemanticError(f"Line {line_number}: Output expression must be of type integer or char")
-
+    
+    # output
     if output_type == SymbolType.INT:
         oal.add_instrx(OpCode.WRITE_INT)
 
@@ -674,27 +702,36 @@ def p_output(*args):
 ))
 def p_condition(*args):
 
+    # generate labels
     label_else = oal.label_id()
     label_post = oal.label_id()
 
     tok = yield
     line_number = tok.line_number
 
+    # load conditional expr
     condition_type = yield
 
     if condition_type != SymbolType.BOOL:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
     
+    # if the conditional is false, jump to else part
     oal.add_instrx(OpCode.JUMP_FALSE, (oal.label(label_else)))
 
     prod = yield
+
+    # execute if part
     prod = yield
 
+    # if part is finished, jump to end
     oal.add_instrx(OpCode.JUMP, (oal.label(label_post)))
     oal.add_instrx(OpCode.NONE, label=label_else)
 
+    # execute else part
     prod = yield
 
+    # else part is finished
+    # add jump point for if part
     oal.add_instrx(OpCode.NONE, label=label_post)
 
     yield
@@ -711,7 +748,6 @@ def p_elsepart(*args):
 @mipl.production(NT.ELSEPART, ())
 def p_elsepart_epsilon(*args):
     yield
-    yield
 
 @mipl.production(NT.WHILE, (
     T.WHILE,
@@ -721,24 +757,32 @@ def p_elsepart_epsilon(*args):
 ))
 def p_while(*args):
 
+    # generate labels
     label_top = oal.label_id()
     label_post = oal.label_id()
 
     tok = yield
 
     line_number = tok.line_number
+
+    # label top of loop
     oal.add_instrx(OpCode.NONE, label=label_top)
 
+    # execute conditional expr
     expr_type = yield
 
     if expr_type != SymbolType.BOOL:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type boolean")
-
+    
+    # if the conditional is false, jump to end
     oal.add_instrx(OpCode.JUMP_FALSE, (oal.label(label_post)))
 
     prod = yield
+
+    # execute main block
     prod = yield
 
+    # jump to top of loop
     oal.add_instrx(OpCode.JUMP, (oal.label(label_top)))
     oal.add_instrx(OpCode.NONE, label=label_post)
 
@@ -757,6 +801,7 @@ def p_expr(*args):
     lhs_type = yield
     rhs_type, line_number = yield
 
+    # fast return if there's no opexpr
     if rhs_type == SymbolType.INVALID:
         yield lhs_type
 
@@ -857,6 +902,9 @@ def p_factor_variable(*args):
     if sign is not None and var_type != SymbolType.INT:
         raise MiplSemanticError(f"Line {line_number}: Expression must be of type integer")
     
+    # we know we're going to need the value inside this variable,
+    # so deref it.
+    # this is the only place necessary to deref
     oal.add_instrx(OpCode.DEREF)
 
     if sign == T.MINUS:
@@ -993,6 +1041,8 @@ def p_variable(*args):
     offset = sym.linkage["offset"]
     nesting_level = sym.linkage["nesting_level"]
 
+    # if this is an array, the offset is going to be off by the starting index
+    # TODO: this should be stored correctly to begin with
     if sym.var_type == SymbolType.ARRAY:
         start_index = sym.array_bounds[0]
         offset -= start_index
@@ -1004,6 +1054,8 @@ def p_variable(*args):
     if indexed and sym.var_type != SymbolType.ARRAY:
         raise MiplSemanticError(f"Line {line_number}: Indexed variable must be of array type")
     
+    # if we're accessing an element of this array,
+    # we need to add its idxvar to its offset
     if indexed:
         start_index = sym.array_bounds[0]
         oal.add_instrx(OpCode.ADD)

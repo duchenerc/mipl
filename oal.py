@@ -1,6 +1,4 @@
-
 from enum import Enum
-from pprint import pprint
 
 class OalOpCode(Enum):
 
@@ -58,21 +56,6 @@ class OalOpCode(Enum):
     WRITE_CHAR = "cwrite"
     WRITE_INT = "iwrite"
 
-# class OalInstruction():
-
-#     def __init__(self, op, params, *, label):
-#         self.op = op
-#         self.params = params
-
-#         self.label = label
-    
-#     def __str__(self):
-#         label_str = "\t" if self.label is None else f"L.{self.label}:\n\t"
-#         params_str = ", ".join(self.params)
-
-#         return f"{label_str}{self.op.value}"
-
-
 class OalWriter():
 
     def __init__(self):
@@ -82,16 +65,24 @@ class OalWriter():
         self.labels = dict()
 
     def label_id(self):
+        """
+        Return a new label id.
+        """
         label = self.next_label
         self.next_label += 1
 
         return label
     
     def label(self, id):
+        """
+        Return a string for the given label id
+        """
         return f"L.{id}"
     
     def add_instrx(self, op: OalOpCode, params=(), *, label=None):
-
+        """
+        Add an instruction to the internal reel
+        """
         if type(params) != tuple:
             params = (params,)
 
@@ -105,9 +96,9 @@ class OalWriter():
         self.add_instrx(OalOpCode.COMMENT, comment)
     
     def write(self, fout):
-
-        # pprint(self.instrx, fout)
-        # pprint(self.labels, fout)
+        """
+        Output all instructions to the passed file pointer
+        """
 
         for i in range(len(self.instrx)):
             op, params = self.instrx[i]
